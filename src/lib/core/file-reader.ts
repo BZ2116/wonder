@@ -43,7 +43,7 @@ export async function readPdfBytes(bytes: Uint8Array): Promise<string> {
 }
 
 export async function readDocxBytes(bytes: Uint8Array): Promise<string> {
-  const result = await mammoth.extractRawText({ arrayBuffer: bytes.buffer.slice(0) as ArrayBuffer })
+  const result = await mammoth.extractRawText({ arrayBuffer: bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer })
   return result.value
 }
 

@@ -30,7 +30,14 @@ export class ConfigManager {
       await this.save(DEFAULT_CONFIG)
       return structuredClone(DEFAULT_CONFIG)
     }
-    return { ...structuredClone(DEFAULT_CONFIG), ...JSON.parse(raw) } as AppConfig
+    const saved = JSON.parse(raw)
+    return {
+      ...structuredClone(DEFAULT_CONFIG),
+      ...saved,
+      model: { ...structuredClone(DEFAULT_CONFIG.model), ...saved.model },
+      research: { ...structuredClone(DEFAULT_CONFIG.research), ...saved.research },
+      analysis: { ...structuredClone(DEFAULT_CONFIG.analysis), ...saved.analysis },
+    } as AppConfig
   }
 
   async save(config: AppConfig): Promise<void> {
