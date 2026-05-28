@@ -7,37 +7,61 @@
       </section>
 
       <div class="context-bar">
-        <el-select
-          v-model="selectedRecordId"
-          placeholder="选择文献上下文"
-          clearable
-          filterable
-          class="record-select"
-          @change="onRecordChange"
-        >
-          <el-option label="新对话（无上下文）" :value="null" />
-          <el-option
-            v-for="record in historyRecords"
-            :key="record.id"
-            :label="record.fileName"
-            :value="record.id"
-          />
-        </el-select>
-        <el-select
-          v-if="qa.sessions.length"
-          v-model="qa.currentSessionId"
-          placeholder="历史会话"
-          clearable
-          class="session-select"
-          @change="onSessionChange"
-        >
-          <el-option
-            v-for="session in qa.sessions"
-            :key="session.id"
-            :label="sessionLabel(session)"
-            :value="session.id"
-          />
-        </el-select>
+        <el-radio-group v-model="qaMode" size="small" class="mode-switch">
+          <el-radio-button value="local">本地模式</el-radio-button>
+          <el-radio-button value="rag">知识库模式</el-radio-button>
+        </el-radio-group>
+
+        <template v-if="qaMode === 'local'">
+          <el-select
+            v-model="selectedRecordId"
+            placeholder="选择文献上下文"
+            clearable
+            filterable
+            class="record-select"
+            @change="onRecordChange"
+          >
+            <el-option label="新对话（无上下文）" :value="null" />
+            <el-option
+              v-for="record in historyRecords"
+              :key="record.id"
+              :label="record.fileName"
+              :value="record.id"
+            />
+          </el-select>
+          <el-select
+            v-if="qa.sessions.length"
+            v-model="qa.currentSessionId"
+            placeholder="历史会话"
+            clearable
+            class="session-select"
+            @change="onSessionChange"
+          >
+            <el-option
+              v-for="session in qa.sessions"
+              :key="session.id"
+              :label="sessionLabel(session)"
+              :value="session.id"
+            />
+          </el-select>
+        </template>
+
+        <template v-else>
+          <el-select
+            v-model="selectedDocIds"
+            multiple
+            filterable
+            placeholder="选择知识库文档（留空则搜索全部）"
+            class="record-select"
+          >
+            <el-option
+              v-for="doc in knowledge.documents"
+              :key="doc.id"
+              :label="doc.file_name"
+              :value="doc.id"
+            />
+          </el-select>
+        </template>
       </div>
 
       <div class="chat-container">
@@ -78,13 +102,21 @@ import AppLayout from '@/components/AppLayout.vue'
 import ChatMessage from '@/components/ChatMessage.vue'
 import { useQAStore } from '@/stores/qa'
 import { useAnalysisStore } from '@/stores/analysis'
+import { useKnowledgeStore } from '@/stores/knowledge'
+import { askQuestion } from '@/lib/api/knowledge'
+import { QAHistoryManager } from '@/lib/core/qa-history'
+import { TauriStorageAdapter } from '@/lib/core/storage'
 import type { HistoryRecord } from '@/lib/core/history'
 import type { QASession } from '@/lib/core/qa-history'
 
+const qaHistory = new QAHistoryManager(new TauriStorageAdapter())
 const qa = useQAStore()
 const analysis = useAnalysisStore()
+const knowledge = useKnowledgeStore()
 
 const inputText = ref('')
+const qaMode = ref<'local' | 'rag'>('local')
+const selectedDocIds = ref<string[]>([])
 const selectedRecordId = ref<string | null>(null)
 const historyRecords = ref<HistoryRecord[]>([])
 const chatArea = ref<HTMLElement | null>(null)
@@ -114,9 +146,58 @@ async function send() {
   const text = inputText.value.trim()
   if (!text || qa.loading) return
   inputText.value = ''
-  await qa.sendMessage(text)
+
+  if (qaMode.value === 'rag') {
+    await sendRAG(text)
+  } else {
+    await qa.sendMessage(text)
+  }
+
   await nextTick()
   scrollToBottom()
+}
+
+async function sendRAG(question: string) {
+  // Create a session if none active
+  if (!qa.currentSessionId) {
+    await qa.createSession(null, '知识库问答')
+  }
+
+  const sessionId = qa.currentSessionId
+  const session = qa.sessions.find(s => s.id === sessionId)
+
+  // Add user message
+  const userMsg = { role: 'user' as const, content: question, timestamp: new Date().toISOString() }
+  await qaHistory.addMessage(sessionId, userMsg)
+  if (session) session.messages.push(userMsg)
+
+  // Add assistant placeholder
+  const assistantMsg = { role: 'assistant' as const, content: '', timestamp: new Date().toISOString() }
+  await qaHistory.addMessage(sessionId, assistantMsg)
+  if (session) session.messages.push(assistantMsg)
+
+  qa.loading = true
+  try {
+    const docIds = selectedDocIds.value.length ? selectedDocIds.value : undefined
+    const result = await askQuestion(question, docIds)
+
+    // Build answer with sources
+    let answer = result.answer
+    if (result.source_chunks && result.source_chunks.length > 0) {
+      answer += '\n\n---\n**参考来源：**\n'
+      result.source_chunks.forEach((chunk, i) => {
+        answer += `\n${i + 1}. ${chunk.slice(0, 200)}${chunk.length > 200 ? '...' : ''}`
+      })
+    }
+
+    assistantMsg.content = answer
+    await qaHistory.updateLastMessage(sessionId, answer)
+  } catch (error) {
+    assistantMsg.content = `Error: ${error instanceof Error ? error.message : String(error)}`
+    await qaHistory.updateLastMessage(sessionId, assistantMsg.content)
+  } finally {
+    qa.loading = false
+  }
 }
 
 function scrollToBottom() {
@@ -129,6 +210,7 @@ watch(() => qa.streamText, () => nextTick(scrollToBottom))
 onMounted(async () => {
   await qa.loadSessions()
   historyRecords.value = await analysis.loadHistoryRecords()
+  await knowledge.loadDocuments()
 })
 </script>
 
@@ -143,6 +225,10 @@ onMounted(async () => {
   margin-bottom: var(--space-md);
   animation: wonder-fade-up 0.2s var(--ease-out) both;
   animation-delay: 0.05s;
+}
+
+.mode-switch {
+  flex-shrink: 0;
 }
 
 .record-select {
