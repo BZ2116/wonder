@@ -5,6 +5,7 @@ from .relation import ProjectRelationAgent
 from .writing import WritingAgent
 from .todo import TodoAgent
 from .qa import QAAgent
+from .orchestrator import Orchestrator, TaskType
 
 __all__ = [
     "BaseAgent",
@@ -13,4 +14,6 @@ __all__ = [
     "WritingAgent",
     "TodoAgent",
     "QAAgent",
+    "Orchestrator",
+    "TaskType",
 ]
