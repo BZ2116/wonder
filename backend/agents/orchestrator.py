@@ -23,16 +23,19 @@ class Orchestrator:
 
     def route_task(self, task_type: str, **kwargs) -> Any:
         """纯规则路由，根据 task_type 调用对应 Agent"""
-        if task_type == TaskType.ANALYZE_DOCUMENT:
+        try:
+            task = TaskType(task_type)
+        except ValueError:
+            raise ValueError(f"Unknown task type: {task_type}. Valid types: {[t.value for t in TaskType]}")
+
+        if task == TaskType.ANALYZE_DOCUMENT:
             return self._analyze_document(**kwargs)
-        elif task_type == TaskType.ASK_QUESTION:
+        elif task == TaskType.ASK_QUESTION:
             return self._ask_question(**kwargs)
-        elif task_type == TaskType.GENERATE_WRITING:
+        elif task == TaskType.GENERATE_WRITING:
             return self._generate_writing(**kwargs)
-        elif task_type == TaskType.GENERATE_TODO:
+        elif task == TaskType.GENERATE_TODO:
             return self._generate_todo(**kwargs)
-        else:
-            raise ValueError(f"Unknown task type: {task_type}")
 
     def _analyze_document(self, text_chunks: List[str], research_context: str,
                           writing_style: str, progress_callback=None) -> Dict[str, Any]:
@@ -70,7 +73,8 @@ class Orchestrator:
         }
 
     def _ask_question(self, question: str, doc_ids: Optional[List[str]] = None,
-                      conversation_history: Optional[List[Dict]] = None) -> Dict[str, Any]:
+                      conversation_history: Optional[List[Dict]] = None,
+                      top_k_docs: int = 3, top_k_chunks: int = 5) -> Dict[str, Any]:
         """问答流程：RAG 检索 + QA Agent"""
         if not self.retriever:
             raise ValueError("RAG retriever not configured")
@@ -79,8 +83,8 @@ class Orchestrator:
         retrieval = self.retriever.retrieve(
             query=question,
             doc_ids=doc_ids,
-            top_k_docs=3,
-            top_k_chunks=5
+            top_k_docs=top_k_docs,
+            top_k_chunks=top_k_chunks
         )
 
         # 2. QA Agent 回答

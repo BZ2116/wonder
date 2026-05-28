@@ -144,8 +144,35 @@ npm run tauri dev
 ### 构建桌面安装包
 
 ```bash
-npm run tauri build
+npm run tauri:build
 ```
+
+构建完成后，Windows NSIS 安装包位于：
+
+```txt
+src-tauri/target/release/bundle/nsis/
+```
+
+## 下载与版本发布
+
+当前目标版本为 `v0.1.0`，先只发布 Windows 安装包。发布仓库：
+
+[https://github.com/BZ2116/wonder](https://github.com/BZ2116/wonder)
+
+发布流程采用本地构建 + GitHub Release 手动上传：
+
+```bash
+npm run test
+npm run build
+npm run tauri:build
+git tag v0.1.0
+git push origin main
+git push origin v0.1.0
+```
+
+然后在 GitHub Releases 中创建 `Wonder v0.1.0`，上传 `src-tauri/target/release/bundle/nsis/` 下生成的 `.exe` 安装包。
+
+应用内自动更新暂不包含在 `v0.1.0` 中，后续可以基于 Tauri updater 插件接入更新提醒和安装流程。详细发布清单见 [docs/release.md](docs/release.md)。
 
 ## 配置
 

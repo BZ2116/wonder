@@ -10,6 +10,7 @@ export interface HistoryRecord {
   relationAnalysis: string
   writingMaterials: string
   todoList: string
+  matching?: string
   fullReport: string
 }
 

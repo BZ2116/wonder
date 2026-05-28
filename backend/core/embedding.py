@@ -1,5 +1,12 @@
 from typing import List
+import openai
 from openai import OpenAI
+
+
+class EmbeddingError(Exception):
+    """Embedding API 调用异常"""
+    pass
+
 
 EMBEDDING_PRESETS = {
     "OpenAI": {
@@ -17,6 +24,8 @@ EMBEDDING_PRESETS = {
 class EmbeddingClient:
     def __init__(self, provider: str, api_key: str, base_url: str,
                  model_name: str, dimensions: int = 1536):
+        if not api_key:
+            raise ValueError("Embedding API key is required")
         self.provider = provider
         self.model_name = model_name
         self.dimensions = dimensions
@@ -26,11 +35,16 @@ class EmbeddingClient:
         """批量获取文本向量"""
         if not texts:
             return []
-        response = self.client.embeddings.create(
-            model=self.model_name,
-            input=texts
-        )
-        return [item.embedding for item in response.data]
+        try:
+            response = self.client.embeddings.create(
+                model=self.model_name,
+                input=texts
+            )
+            return [item.embedding for item in response.data]
+        except openai.RateLimitError as e:
+            raise EmbeddingError(f"Embedding API rate limit exceeded: {e}") from e
+        except openai.APIError as e:
+            raise EmbeddingError(f"Embedding API error: {e}") from e
 
     def embed_single(self, text: str) -> List[float]:
         """单条文本向量化"""

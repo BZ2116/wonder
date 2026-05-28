@@ -74,6 +74,6 @@ async function notifyDone(fileName: string): Promise<void> {
     permissionGranted = permission === 'granted'
   }
   if (permissionGranted) {
-    sendNotification({ title: 'Note Forge', body: `${fileName} 分析完成` })
+    sendNotification({ title: '文答 Wonder', body: `${fileName} 分析完成` })
   }
 }

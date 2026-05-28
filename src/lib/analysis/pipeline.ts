@@ -2,12 +2,13 @@ import { LiteratureParserAgent } from '@/lib/agents/literature'
 import { ProjectRelationAgent } from '@/lib/agents/relation'
 import { WritingAgent } from '@/lib/agents/writing'
 import { TodoAgent } from '@/lib/agents/todo'
+import { MatchingAgent } from '@/lib/agents/matching'
 import type { AgentCaller } from '@/lib/agents/base'
 import { chunkText, estimateTokens } from '@/lib/core/chunker'
 import type { HistoryManager } from '@/lib/core/history'
 import type { AppConfig } from '@/lib/llm/types'
 
-export type AnalysisStep = 'reading' | 'relation' | 'writing' | 'todo' | 'saving' | 'done'
+export type AnalysisStep = 'reading' | 'relation' | 'writing' | 'todo' | 'matching' | 'saving' | 'done'
 
 export interface AnalysisResult {
   fileName: string
@@ -15,6 +16,7 @@ export interface AnalysisResult {
   relationAnalysis: string
   writingMaterials: string
   todoList: string
+  matching?: string
   fullReport: string
 }
 
@@ -71,6 +73,19 @@ export async function runSingleAnalysis(input: RunSingleAnalysisInput): Promise<
     stream('todo'),
   )
 
+  let matching: string | undefined
+  if (input.config.research.background) {
+    emit('matching')
+    const matchingResult = await new MatchingAgent(input.config.model, input.caller).run(
+      {
+        readingCard: literature.readingCard,
+        researchBackground: input.config.research.background,
+      },
+      stream('matching'),
+    )
+    matching = matchingResult.matchingAnalysis
+  }
+
   const fullReport = buildFullReport({
     fileName: input.fileName,
     model: input.config.model.modelName,
@@ -80,6 +95,7 @@ export async function runSingleAnalysis(input: RunSingleAnalysisInput): Promise<
     relationAnalysis: relation.relationAnalysis,
     writingMaterials: writing.writingMaterials,
     todoList: todo.todoList,
+    matching,
   })
 
   emit('saving')
@@ -91,6 +107,7 @@ export async function runSingleAnalysis(input: RunSingleAnalysisInput): Promise<
     relationAnalysis: relation.relationAnalysis,
     writingMaterials: writing.writingMaterials,
     todoList: todo.todoList,
+    matching,
     fullReport,
   })
 
@@ -103,6 +120,7 @@ export async function runSingleAnalysis(input: RunSingleAnalysisInput): Promise<
       relationAnalysis: relation.relationAnalysis,
       writingMaterials: writing.writingMaterials,
       todoList: todo.todoList,
+      matching,
       fullReport,
     },
   }
@@ -117,8 +135,9 @@ function buildFullReport(input: {
   relationAnalysis: string
   writingMaterials: string
   todoList: string
+  matching?: string
 }): string {
-  return `# Note Forge Analysis Report
+  return `# 文答 Wonder 分析报告
 
 - File: ${input.fileName}
 - Model: ${input.model}
@@ -141,6 +160,7 @@ ${input.writingMaterials}
 ---
 
 ${input.todoList}
+${input.matching ? `\n---\n\n${input.matching}` : ''}
 `
 }
 

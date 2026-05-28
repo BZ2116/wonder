@@ -22,6 +22,9 @@ ENV/
 # Output files
 outputs/*
 !outputs/.gitkeep
+data/
+backend/data/
+backend/test_data/
 
 # IDE
 .vscode/
@@ -39,6 +42,7 @@ test.md
 
 # Claude Code
 .claude/
+.superpowers/
 
 # Tauri
 src-tauri/target/

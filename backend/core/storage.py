@@ -82,7 +82,8 @@ class StorageManager:
         return [dict(row) for row in rows]
 
     def delete_document(self, doc_id: str):
-        """删除文档元数据"""
+        """删除文档元数据及向量"""
+        self.delete_from_collection(doc_id)
         self.db.execute("DELETE FROM document_tags WHERE doc_id = ?", (doc_id,))
         self.db.execute("DELETE FROM documents WHERE id = ?", (doc_id,))
         self.db.commit()

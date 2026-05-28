@@ -73,5 +73,4 @@ class DocumentIndexer:
 
     def delete_document(self, doc_id: str):
         """从知识库删除文档"""
-        self.storage.delete_from_collection(doc_id)
         self.storage.delete_document(doc_id)

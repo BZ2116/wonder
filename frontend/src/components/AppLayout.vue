@@ -2,7 +2,8 @@
   <el-container class="app-layout">
     <el-aside width="220px" class="sidebar">
       <div class="logo">
-        <h1>Note Forge</h1>
+        <img src="/patternLogo.png" alt="文答" class="logo-img" />
+        <h1>文答</h1>
       </div>
       <el-menu
         :default-active="activeMenu"
@@ -52,6 +53,13 @@ const activeMenu = computed(() => route.path)
   padding: 20px;
   text-align: center;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.logo-img {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+  margin-bottom: 8px;
 }
 
 .logo h1 {
