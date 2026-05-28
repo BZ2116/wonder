@@ -69,16 +69,16 @@ class KnowledgeConfig(BaseModel):
     auto_index: bool = True
     max_context_tokens: int = 8000
 
-class QuestionRequest(BaseModel):
+class KnowledgeQARequest(BaseModel):
     question: str
     doc_ids: Optional[List[str]] = None
     top_k_docs: int = 3
     top_k_chunks: int = 5
 
-class QuestionResponse(BaseModel):
+class KnowledgeQAResponse(BaseModel):
     answer: str
     source_doc_ids: List[str]
-    source_chunks: List[dict]
+    source_chunks: List[str]
 
 class SearchRequest(BaseModel):
     query: str

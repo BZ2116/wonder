@@ -20,25 +20,33 @@ from backend.models.schemas import (
     SearchRequest, SearchResponse,
     DocumentListResponse, DocumentDetailResponse
 )
+from openai import OpenAI
 
 router = APIRouter(prefix="/api/knowledge", tags=["knowledge"])
 
 config_manager = ConfigManager("data/config.json")
 
 
+# Module-level singletons (created once)
+_storage = None
+_embedding = None
+
+
 def get_storage_and_embedding():
-    """获取存储和 embedding 配置"""
-    config = config_manager.load()
-    knowledge_config = config.get("knowledge", {})
-    embedding_config = config.get("embedding", {})
+    """获取存储和 embedding (单例)"""
+    global _storage, _embedding
+    if _storage is None:
+        config = config_manager.load()
+        knowledge_config = config.get("knowledge", {})
+        embedding_config = config.get("embedding", {})
 
-    storage = StorageManager(
-        chroma_path=knowledge_config.get("chroma_path", "data/chroma"),
-        sqlite_path=knowledge_config.get("sqlite_path", "data/knowledge.db")
-    )
-    embedding = EmbeddingClient.from_config(embedding_config)
+        _storage = StorageManager(
+            chroma_path=knowledge_config.get("chroma_path", "data/chroma"),
+            sqlite_path=knowledge_config.get("sqlite_path", "data/knowledge.db")
+        )
+        _embedding = EmbeddingClient.from_config(embedding_config)
 
-    return storage, embedding
+    return _storage, _embedding
 
 
 def get_orchestrator():
@@ -49,10 +57,22 @@ def get_orchestrator():
     storage, embedding = get_storage_and_embedding()
     retriever = RAGRetriever(storage, embedding)
 
+    # Create LLM client (same pattern as analysis.py)
+    provider = model_config.get("provider", "MiniMax")
+    api_type = "anthropic" if provider == "Anthropic" else "openai"
+
+    if api_type == "openai":
+        client = OpenAI(
+            api_key=model_config.get("api_key", ""),
+            base_url=model_config.get("base_url", "")
+        )
+    else:
+        client = None  # Anthropic uses direct HTTP
+
     client_params = {
-        "client": None,
+        "client": client,
         "model": model_config.get("model_name", "MiniMax-M2.7"),
-        "api_type": "openai",
+        "api_type": api_type,
         "api_key": model_config.get("api_key", ""),
         "base_url": model_config.get("base_url", "")
     }
@@ -78,12 +98,15 @@ async def index_document(
     try:
         # 1. 读取文档
         file_bytes = await file.read()
-        file_path = f"data/uploads/{file.filename}"
+        safe_filename = os.path.basename(file.filename) if file.filename else ""
+        if not safe_filename or '/' in safe_filename or '\\' in safe_filename:
+            raise HTTPException(status_code=400, detail="Invalid filename")
+        file_path = f"data/uploads/{safe_filename}"
         os.makedirs(os.path.dirname(file_path), exist_ok=True)
         with open(file_path, "wb") as f:
             f.write(file_bytes)
 
-        raw_text = read_file(file.filename, file_bytes)
+        raw_text = read_file(safe_filename, file_bytes)
         text = clean_text(raw_text)
 
         if not text.strip():
@@ -109,7 +132,7 @@ async def index_document(
         storage, embedding = get_storage_and_embedding()
         indexer = DocumentIndexer(storage, embedding)
         doc_id = indexer.index_document(
-            file_name=file.filename,
+            file_name=safe_filename,
             file_path=file_path,
             chunks=chunks,
             summary=summary,
@@ -131,7 +154,9 @@ async def ask_question(request: KnowledgeQARequest):
         result = orchestrator.route_task(
             task_type="ask_question",
             question=request.question,
-            doc_ids=request.doc_ids
+            doc_ids=request.doc_ids,
+            top_k_docs=request.top_k_docs,
+            top_k_chunks=request.top_k_chunks
         )
         return KnowledgeQAResponse(
             answer=result["answer"],
@@ -192,8 +217,13 @@ async def delete_document(doc_id: str):
     """从知识库删除文档"""
     try:
         storage, embedding = get_storage_and_embedding()
+        doc = storage.get_document(doc_id)
+        if not doc:
+            raise HTTPException(status_code=404, detail="Document not found")
         indexer = DocumentIndexer(storage, embedding)
         indexer.delete_document(doc_id)
         return {"message": "Document deleted successfully"}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

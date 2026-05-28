@@ -6,8 +6,8 @@ from backend.core.storage import StorageManager
 
 @dataclass
 class RetrievalResult:
-    summaries: List[Dict[str, Any]]
-    chunks: List[Dict[str, Any]]
+    summaries: List[str]
+    chunks: List[str]
     context: str
     source_doc_ids: List[str]
 
@@ -41,9 +41,10 @@ class RAGRetriever:
         )
 
         # 3. 第二层：内容检索
-        if summaries_result["metadatas"][0]:
+        summary_metas = summaries_result.get("metadatas", [[]])[0] if summaries_result.get("metadatas") else []
+        if summary_metas:
             matched_doc_ids = list(set(
-                m["doc_id"] for m in summaries_result["metadatas"][0]
+                m["doc_id"] for m in summary_metas
             ))
             content_where = {
                 "chunk_type": "content",
@@ -65,8 +66,8 @@ class RAGRetriever:
         )
 
         return RetrievalResult(
-            summaries=summaries_result["documents"][0] if summaries_result["documents"] else [],
-            chunks=chunks_result["documents"][0] if chunks_result["documents"] else [],
+            summaries=summaries_result.get("documents", [[]])[0] if summaries_result.get("documents") else [],
+            chunks=chunks_result.get("documents", [[]])[0] if chunks_result.get("documents") else [],
             context=context,
             source_doc_ids=matched_doc_ids
         )
@@ -77,21 +78,27 @@ class RAGRetriever:
         parts = []
         current_tokens = 0
 
+        summary_docs = summaries.get("documents", [[]])[0] if summaries.get("documents") else []
+        summary_metas = summaries.get("metadatas", [[]])[0] if summaries.get("metadatas") else []
+
         # 添加摘要
-        for i, doc in enumerate(summaries["documents"][0] if summaries["documents"] else []):
-            doc_tokens = len(doc) // 2  # 粗略估计
+        for i, doc in enumerate(summary_docs):
+            doc_tokens = len(doc)  # 保守估计：每个字符 1 token
             if current_tokens + doc_tokens > max_tokens:
                 break
-            file_name = summaries["metadatas"][0][i].get("file_name", "unknown")
+            file_name = summary_metas[i].get("file_name", "unknown") if i < len(summary_metas) else "unknown"
             parts.append(f"[文档摘要] {file_name}:\n{doc}")
             current_tokens += doc_tokens
 
+        chunk_docs = chunks.get("documents", [[]])[0] if chunks.get("documents") else []
+        chunk_metas = chunks.get("metadatas", [[]])[0] if chunks.get("metadatas") else []
+
         # 添加内容分块
-        for i, doc in enumerate(chunks["documents"][0] if chunks["documents"] else []):
-            doc_tokens = len(doc) // 2
+        for i, doc in enumerate(chunk_docs):
+            doc_tokens = len(doc)
             if current_tokens + doc_tokens > max_tokens:
                 break
-            file_name = chunks["metadatas"][0][i].get("file_name", "unknown")
+            file_name = chunk_metas[i].get("file_name", "unknown") if i < len(chunk_metas) else "unknown"
             parts.append(f"[相关内容] {file_name}:\n{doc}")
             current_tokens += doc_tokens
 
@@ -113,14 +120,17 @@ class RAGRetriever:
         )
 
         results = []
-        if result["documents"][0]:
-            for i, doc in enumerate(result["documents"][0]):
-                metadata = result["metadatas"][0][i] if result["metadatas"] else {}
-                distance = result["distances"][0][i] if result["distances"] else None
+        docs = result.get("documents", [[]])[0] if result.get("documents") else []
+        metas = result.get("metadatas", [[]])[0] if result.get("metadatas") else []
+        dists = result.get("distances", [[]])[0] if result.get("distances") else []
+        if docs:
+            for i, doc in enumerate(docs):
+                metadata = metas[i] if i < len(metas) else {}
+                distance = dists[i] if i < len(dists) else None
                 results.append({
                     "content": doc,
                     "metadata": metadata,
-                    "score": 1 - distance if distance else None
+                    "score": 1 - distance / 2 if distance is not None else None
                 })
 
         return results
