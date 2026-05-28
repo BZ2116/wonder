@@ -1,7 +1,17 @@
 <template>
   <div class="workflow">
-    <div v-for="item in steps" :key="item.key" class="step" :class="{ active: item.key === currentStep, done: isDone(item.key) }">
-      <span>{{ item.label }}</span>
+    <div
+      v-for="(item, idx) in steps"
+      :key="item.key"
+      class="step"
+      :class="{ active: item.key === currentStep, done: isDone(item.key) }"
+    >
+      <span class="step-dot">
+        <svg v-if="isDone(item.key)" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3.5 8.5l3 3 6-6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span v-else class="step-num">{{ idx + 1 }}</span>
+      </span>
+      <span class="step-label">{{ item.label }}</span>
+      <div v-if="idx < steps.length - 1" class="step-connector" :class="{ filled: isDone(item.key) }"></div>
     </div>
   </div>
 </template>
@@ -28,30 +38,92 @@ function isDone(key: AnalysisStep) {
 
 <style scoped>
 .workflow {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 8px;
-  margin: 18px 0;
+  display: flex;
+  align-items: center;
+  gap: 0;
+  margin: var(--space-md) 0;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  padding: 16px 20px;
+  box-shadow: var(--shadow-sm);
 }
 
 .step {
-  min-height: 40px;
-  display: grid;
-  place-items: center;
-  border-radius: 6px;
-  border: 1px solid #ddd2b4;
-  background: #fffdfa;
-  color: #777;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  position: relative;
+  flex: 1;
 }
 
-.step.active {
-  border-color: #f0c040;
-  color: #1a1a2e;
-  font-weight: 700;
+.step-dot {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 1.5px solid var(--border);
+  background: var(--bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition:
+    border-color var(--duration-fast) var(--ease-standard),
+    background var(--duration-fast) var(--ease-standard),
+    color var(--duration-fast) var(--ease-standard);
+  color: var(--ink-faint);
+  font-size: 11px;
 }
 
-.step.done {
-  background: #f7efd4;
-  color: #1a1a2e;
+.step-dot svg {
+  width: 14px;
+  height: 14px;
+}
+
+.step-num {
+  font-weight: 600;
+  font-size: 11px;
+}
+
+.step-label {
+  font-size: 12px;
+  color: var(--ink-faint);
+  font-weight: 500;
+  white-space: nowrap;
+  transition: color var(--duration-fast) var(--ease-standard);
+}
+
+.step-connector {
+  flex: 1;
+  height: 1.5px;
+  background: var(--border);
+  margin: 0 8px;
+  transition: background var(--duration-fast) var(--ease-standard);
+}
+
+.step-connector.filled {
+  background: var(--accent);
+}
+
+.step.active .step-dot {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+  animation: wonder-pulse 2s ease-in-out infinite;
+}
+
+.step.active .step-label {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.step.done .step-dot {
+  border-color: var(--accent);
+  background: var(--accent-light);
+  color: var(--accent);
+}
+
+.step.done .step-label {
+  color: var(--ink-caption);
 }
 </style>
