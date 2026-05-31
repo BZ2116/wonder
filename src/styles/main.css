@@ -975,9 +975,43 @@ h1, h2, h3, h4, h5, h6 {
   opacity: 1;
 }
 
+/* ---------- Discovery 页面 ---------- */
+.wonder-discovery-page {
+  max-width: 960px;
+  margin: 0 auto;
+}
+
+.wonder-discovery-page .wonder-page-header {
+  text-align: center;
+}
+
 /* ---------- Discovery 双栏 ---------- */
 .wonder-discovery-search {
   margin-bottom: 16px;
+}
+
+.wonder-discovery-search .ant-input-group {
+  display: flex;
+}
+
+.wonder-discovery-search .ant-input-wrapper {
+  display: flex;
+  flex: 1;
+}
+
+.wonder-discovery-search .ant-input-wrapper .ant-input {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.wonder-discovery-search .ant-input-group-addon {
+  border-radius: 0;
+}
+
+.wonder-discovery-search .ant-input-group-addon .ant-btn {
+  border-radius: 0;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
 }
 
 .wonder-discovery-layout {

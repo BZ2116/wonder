@@ -27,7 +27,7 @@ export default function Discovery() {
   }
 
   return (
-    <div className="wonder-page">
+    <div className="wonder-page wonder-discovery-page">
       <div className="wonder-page-header">
         <Typography.Title level={4}>文献发现</Typography.Title>
         <Typography.Text type="secondary">搜索学术论文，发现研究前沿</Typography.Text>
