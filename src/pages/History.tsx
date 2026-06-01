@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Typography, Button, Empty, Tag } from 'antd'
-import { FileTextOutlined, RightOutlined, BookOutlined } from '@ant-design/icons'
+import { Typography, Button, Empty, Tag, Popconfirm } from 'antd'
+import { FileTextOutlined, RightOutlined, BookOutlined, DeleteOutlined } from '@ant-design/icons'
 import { useHistoryStore } from '../stores/history'
 import { useKnowledgeStore } from '../stores/knowledge'
 
@@ -16,7 +16,7 @@ const actionLabels: Record<string, { label: string; color: string }> = {
 
 export default function History() {
   const navigate = useNavigate()
-  const { items, loading, loadHistory } = useHistoryStore()
+  const { items, loading, loadHistory, deleteHistory } = useHistoryStore()
   const { knowledgeBases, loadKnowledgeBases } = useKnowledgeStore()
 
   useEffect(() => { loadHistory(); loadKnowledgeBases() }, [loadHistory, loadKnowledgeBases])
@@ -101,8 +101,18 @@ export default function History() {
                     )}
                   </div>
                 </div>
-                <div className="wonder-history-card__actions">
-                  <Button type="text" size="small" icon={<RightOutlined />} />
+                <div className="wonder-history-card__actions" onClick={(e) => e.stopPropagation()}>
+                  <Popconfirm
+                    title="确认删除"
+                    description="删除后不可恢复，确定要删除这条记录吗？"
+                    onConfirm={() => deleteHistory(item.id)}
+                    okText="删除"
+                    cancelText="取消"
+                    okButtonProps={{ danger: true }}
+                  >
+                    <Button type="text" size="small" danger icon={<DeleteOutlined />} />
+                  </Popconfirm>
+                  <Button type="text" size="small" icon={<RightOutlined />} onClick={() => navigate(`/history/${item.id}`)} />
                 </div>
               </div>
             )

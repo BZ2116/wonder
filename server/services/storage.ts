@@ -293,6 +293,11 @@ export class StorageService {
     return this.db.prepare('SELECT * FROM analysis_history WHERE document_id = ? ORDER BY created_at DESC LIMIT 1').get(documentId) as HistoryRow | undefined
   }
 
+  deleteHistory(id: string): boolean {
+    const result = this.db.prepare('DELETE FROM analysis_history WHERE id = ?').run(id)
+    return result.changes > 0
+  }
+
   // ── Knowledge Base methods ──────────────────────────────────────────
 
   createKnowledgeBase(kb: { id: string; name: string; description?: string; readme?: string }) {

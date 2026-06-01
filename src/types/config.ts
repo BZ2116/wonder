@@ -28,6 +28,7 @@ export interface KnowledgeConfig {
 
 export interface ResearchConfig {
   globalProfile: string
+  background?: string
 }
 
 export interface NormalizedAppConfig {

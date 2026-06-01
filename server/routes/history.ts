@@ -17,5 +17,12 @@ export function historyRoutes(storage: StorageService) {
     return c.json(entry)
   })
 
+  app.delete('/:id', (c) => {
+    const id = c.req.param('id')
+    const deleted = storage.deleteHistory(id)
+    if (!deleted) return c.json({ error: 'Not found' }, 404)
+    return c.json({ ok: true })
+  })
+
   return app
 }

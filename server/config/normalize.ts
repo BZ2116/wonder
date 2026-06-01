@@ -50,6 +50,7 @@ export function normalizeConfig(kvPairs: Record<string, string>): NormalizedAppC
       // Already-normalized format (has nested chat/embedding objects)
       if (parsed.chat && typeof parsed.chat === 'object') {
         const storedProfile = parsed.research?.globalProfile || ''
+        const storedBackground = parsed.research?.background || ''
         return {
           chat: {
             provider: parsed.chat.provider || 'openai_compatible',
@@ -69,7 +70,7 @@ export function normalizeConfig(kvPairs: Record<string, string>): NormalizedAppC
             dimensions: parsed.embedding?.dimensions ?? 1536,
           },
           knowledge: parsed.knowledge || { enabled: true, autoIndex: true, contextTokenLimit: 8000 },
-          research: { globalProfile: storedProfile || globalProfile },
+          research: { globalProfile: storedProfile || globalProfile, background: storedBackground },
           nickname: parsed.nickname,
           avatar: parsed.avatar,
         }

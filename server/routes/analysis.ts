@@ -90,6 +90,16 @@ export function analysisRoutes(storage: StorageService, python: PythonBackendCli
 
         const globalProfile = storage.getConfig('globalProfile') || ''
 
+        // Load chat config to pass to Python backend
+        let chatConfig: Record<string, unknown> | undefined
+        try {
+          const raw = storage.getConfig('appConfig')
+          if (raw) {
+            const parsed = JSON.parse(raw)
+            chatConfig = parsed.chat || undefined
+          }
+        } catch { /* ignore */ }
+
         // Step 2+: Forward Python SSE events
         const truncatedText = text.length > 50000 ? text.slice(0, 50000) + '\n\n[文本已截断]' : text
 
@@ -111,6 +121,7 @@ export function analysisRoutes(storage: StorageService, python: PythonBackendCli
           global_profile: knowledgeBaseId ? '' : globalProfile,
           max_chars: 7000,
           overlap: 500,
+          chat_config: chatConfig,
         }, abortController.signal)) {
           if (sse.event === 'agent_start') {
             const { step } = JSON.parse(sse.data) as { step: string }

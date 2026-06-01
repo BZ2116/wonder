@@ -126,13 +126,19 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
 
   useEffect(() => { loadConfig() }, [loadConfig])
 
+  const hasScrolled = useRef(false)
+
   useEffect(() => {
-    if (open) {
+    if (open && settingsTarget && !hasScrolled.current) {
       setActiveTab('api')
+      hasScrolled.current = true
       setTimeout(() => {
         const ref = settingsTarget === 'embedding' ? embeddingRef.current : analysisRef.current
         ref?.scrollIntoView({ behavior: 'smooth', block: 'start' })
       }, 100)
+    }
+    if (!open) {
+      hasScrolled.current = false
     }
   }, [open, settingsTarget])
 
@@ -151,7 +157,7 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
         embeddingApiKey: config.embedding.apiKey || '',
         embeddingModel: config.embedding.model || '',
         embeddingApiFormat: detectApiFormat(config.embedding.provider, config.embedding.baseUrl),
-        researchBackground: '',
+        researchBackground: config.research.background || '',
         globalUserProfile: config.research.globalProfile || '',
         nickname: config.nickname || '',
         avatar: config.avatar || '',
@@ -240,7 +246,7 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
       dimensions: config?.embedding.dimensions ?? 1536,
     },
     knowledge: config?.knowledge ?? { enabled: true, autoIndex: true, contextTokenLimit: 8000 },
-    research: { globalProfile: form.globalUserProfile },
+    research: { globalProfile: form.globalUserProfile, background: form.researchBackground },
     nickname: form.nickname || undefined,
     avatar: form.avatar || undefined,
   })

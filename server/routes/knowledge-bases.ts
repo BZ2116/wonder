@@ -106,6 +106,11 @@ export function knowledgeBaseRoutes(storage: StorageService, python: PythonBacke
       const chunks = storage.getChunksByDocument(docId)
       const chunkTexts = chunks.map(ch => ch.content)
       storage.updateDocumentLifecycle(docId, 'indexing')
+      let embeddingConfig: Record<string, unknown> | undefined
+      try {
+        const raw = storage.getConfig('appConfig')
+        if (raw) embeddingConfig = JSON.parse(raw).embedding || undefined
+      } catch { /* ignore */ }
       python.post('/api/knowledge/documents/gateway', {
         doc_id: docId,
         knowledge_base_id: kbId,
@@ -120,6 +125,7 @@ export function knowledgeBaseRoutes(storage: StorageService, python: PythonBacke
           todo_list: doc.todo_list ?? '',
         },
         tags: doc.tags ? doc.tags.split(',').map(t => t.trim()).filter(Boolean) : [],
+        embedding_config: embeddingConfig,
       }).then(() => {
         storage.updateDocumentLifecycle(docId, 'indexed')
         storage.updateDocumentIndexStatus(docId, 'indexed', null)
@@ -186,6 +192,11 @@ export function knowledgeBaseRoutes(storage: StorageService, python: PythonBacke
     const chunkTexts = chunks.map(ch => ch.content)
 
     storage.updateDocumentLifecycle(docId, 'indexing')
+    let embeddingConfig: Record<string, unknown> | undefined
+    try {
+      const raw = storage.getConfig('appConfig')
+      if (raw) embeddingConfig = JSON.parse(raw).embedding || undefined
+    } catch { /* ignore */ }
     try {
       await python.post('/api/knowledge/documents/gateway', {
         doc_id: docId,
@@ -201,6 +212,7 @@ export function knowledgeBaseRoutes(storage: StorageService, python: PythonBacke
           todo_list: doc.todo_list ?? '',
         },
         tags: doc.tags ? doc.tags.split(',').map(t => t.trim()).filter(Boolean) : [],
+        embedding_config: embeddingConfig,
       })
       storage.updateDocumentLifecycle(docId, 'indexed')
       storage.updateDocumentIndexStatus(docId, 'indexed', null)

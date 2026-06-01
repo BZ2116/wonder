@@ -1,7 +1,7 @@
 {
   "name": "wonder",
-  "version": "1.0.0",
-  "description": "",
+  "version": "0.2.0",
+  "description": "Wonder - AI 文献分析与知识管理工具",
   "main": "dist-electron/main.js",
   "scripts": {
     "dev": "concurrently \"vite\" \"tsx watch server/index.ts\"",
@@ -14,7 +14,7 @@
     "test": "vitest run"
   },
   "keywords": [],
-  "author": "",
+  "author": "Bruce Zhao",
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {

@@ -19,6 +19,9 @@ __pycache__/
 # Docs (local plans/specs)
 docs/superpowers/plans/
 
+# Compiled TypeScript (in src)
+src/types/*.js
+
 # IDE
 .vscode/
 .idea/

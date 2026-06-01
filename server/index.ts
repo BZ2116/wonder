@@ -111,15 +111,17 @@ app.get('/api/health/llm', async (c) => {
   }
 })
 
+const rendererDir = path.join(__dirname, '../../dist/renderer')
+
 app.use(
   '/*',
   serveStatic({
-    root: '../dist/renderer',
+    root: rendererDir,
     rewriteRequestPath: (p) => p,
   })
 )
 
-app.get('*', serveStatic({ root: '../dist/renderer', path: 'index.html' }))
+app.get('*', serveStatic({ root: rendererDir, path: 'index.html' }))
 
 const port = parseInt(process.env.PORT || '9800', 10)
 serve({ fetch: app.fetch, hostname: '127.0.0.1', port }, (info) => {

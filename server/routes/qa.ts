@@ -69,13 +69,17 @@ export function qaRoutes(storage: StorageService, python: PythonBackendClient) {
 
     // Build Python request based on scope
     const scopeIds: string[] = JSON.parse(session.scope_ids)
-    // Extract nickname from normalized config
+    // Extract nickname and chat/embedding config from normalized config
     let nickname = ''
+    let chatConfig: Record<string, unknown> | undefined
+    let embeddingConfig: Record<string, unknown> | undefined
     try {
       const raw = storage.getConfig('appConfig')
       if (raw) {
         const parsed = JSON.parse(raw)
         nickname = parsed.nickname || ''
+        chatConfig = parsed.chat || undefined
+        embeddingConfig = parsed.embedding || undefined
       }
     } catch { /* ignore */ }
 
@@ -85,6 +89,8 @@ export function qaRoutes(storage: StorageService, python: PythonBackendClient) {
       nickname,
       top_k_docs: 3,
       top_k_chunks: 5,
+      chat_config: chatConfig,
+      embedding_config: embeddingConfig,
     }
 
     if (session.scope_type === 'knowledge_base' && scopeIds.length > 0) {
@@ -132,11 +138,15 @@ export function qaRoutes(storage: StorageService, python: PythonBackendClient) {
     const kb = body.knowledgeBaseId ? storage.getKnowledgeBase(body.knowledgeBaseId) : undefined
 
     let nickname = ''
+    let chatConfig: Record<string, unknown> | undefined
+    let embeddingConfig: Record<string, unknown> | undefined
     try {
       const raw = storage.getConfig('appConfig')
       if (raw) {
         const parsed = JSON.parse(raw)
         nickname = parsed.nickname || ''
+        chatConfig = parsed.chat || undefined
+        embeddingConfig = parsed.embedding || undefined
       }
     } catch { /* ignore */ }
 
@@ -149,6 +159,8 @@ export function qaRoutes(storage: StorageService, python: PythonBackendClient) {
       nickname,
       top_k_docs: 3,
       top_k_chunks: 5,
+      chat_config: chatConfig,
+      embedding_config: embeddingConfig,
     })
 
     return c.json({
