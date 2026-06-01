@@ -1,5 +1,5 @@
 from typing import Any, List, Literal, Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class AnalysisRequest(BaseModel):
@@ -69,6 +69,49 @@ class KnowledgeConfig(BaseModel):
     auto_index: bool = True
     max_context_tokens: int = 8000
 
+
+# Normalized config models (camelCase aliases for Node/frontend compatibility)
+
+class ChatConfig(BaseModel):
+    model_config = {"protected_namespaces": ()}
+    provider: Literal["openai_compatible", "anthropic", "minimax", "custom_openai_compatible"] = "openai_compatible"
+    preset: str = ""
+    api_key: str = Field(default="", alias="apiKey")
+    base_url: str = Field(default="https://api.anthropic.com", alias="baseUrl")
+    model: str = "claude-sonnet-4-20250514"
+    temperature: float = 0.2
+    max_tokens: int = Field(default=4096, alias="maxTokens")
+
+
+class NormalizedEmbeddingConfig(BaseModel):
+    model_config = {"protected_namespaces": ()}
+    provider: Literal["openai_compatible", "custom_openai_compatible", "minimax"] = "openai_compatible"
+    preset: str = ""
+    api_key: str = Field(default="", alias="apiKey")
+    base_url: str = Field(default="https://api.openai.com/v1", alias="baseUrl")
+    model: str = "text-embedding-3-small"
+    dimensions: int = 1536
+
+
+class NormalizedKnowledgeConfig(BaseModel):
+    enabled: bool = True
+    auto_index: bool = Field(default=True, alias="autoIndex")
+    context_token_limit: int = Field(default=8000, alias="contextTokenLimit")
+
+
+class NormalizedResearchConfig(BaseModel):
+    global_profile: str = Field(default="", alias="globalProfile")
+
+
+class NormalizedAppConfig(BaseModel):
+    chat: ChatConfig = Field(default_factory=ChatConfig)
+    embedding: NormalizedEmbeddingConfig = Field(default_factory=NormalizedEmbeddingConfig)
+    knowledge: NormalizedKnowledgeConfig = Field(default_factory=NormalizedKnowledgeConfig)
+    research: NormalizedResearchConfig = Field(default_factory=NormalizedResearchConfig)
+    nickname: Optional[str] = None
+    avatar: Optional[str] = None
+
+
 class KnowledgeQARequest(BaseModel):
     question: str
     knowledge_base_id: Optional[str] = None
@@ -77,6 +120,8 @@ class KnowledgeQARequest(BaseModel):
     doc_ids: Optional[List[str]] = None
     top_k_docs: int = 3
     top_k_chunks: int = 5
+    chat_config: Optional[ChatConfig] = None
+    embedding_config: Optional[NormalizedEmbeddingConfig] = None
 
 class KnowledgeQAResponse(BaseModel):
     answer: str
@@ -118,6 +163,7 @@ class GatewayAnalysisRequest(BaseModel):
     global_profile: str = ""
     max_chars: int = 7000
     overlap: int = 500
+    chat_config: Optional[ChatConfig] = None
 
 
 class GatewayAnalysisResponse(BaseModel):
@@ -147,3 +193,10 @@ class KnowledgeIndexRequest(BaseModel):
     summary: str
     analysis_result: dict
     tags: List[str] = []
+    embedding_config: Optional[NormalizedEmbeddingConfig] = None
+
+
+class HealthCheckResponse(BaseModel):
+    status: str
+    provider: str
+    message: str = ""

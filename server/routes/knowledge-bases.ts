@@ -1,6 +1,5 @@
 import { Hono } from 'hono'
 import { StorageService } from '../services/storage'
-import { LLMService } from '../services/llm'
 import { randomUUID } from 'crypto'
 
 const DEFAULT_README = `# 知识库 README
@@ -20,7 +19,7 @@ const DEFAULT_README = `# 知识库 README
 ## 阅读与分析偏好
 `
 
-export function knowledgeBaseRoutes(storage: StorageService, llm: LLMService) {
+export function knowledgeBaseRoutes(storage: StorageService) {
   const app = new Hono()
 
   // List all knowledge bases

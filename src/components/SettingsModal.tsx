@@ -16,41 +16,51 @@ import {
 } from '@ant-design/icons'
 import { useConfigStore } from '../stores/config'
 import { useUIStore } from '../stores/ui'
-import type { AppConfig } from '../types/analysis'
+import type { NormalizedAppConfig, ChatProvider, EmbeddingProvider } from '../types/config'
 
 type SettingsTab = 'api' | 'research' | 'update' | 'profile'
 
-interface ProviderConfig {
+interface ProviderPreset {
   id: string
   name: string
+  provider: ChatProvider | EmbeddingProvider
   baseUrl: string
-  models: string[]
+  chatModels: string[]
+  embeddingModels: string[]
 }
 
-const providers: ProviderConfig[] = [
+const providerPresets: ProviderPreset[] = [
+  {
+    id: 'openai',
+    name: 'OpenAI',
+    provider: 'openai_compatible',
+    baseUrl: 'https://api.openai.com/v1',
+    chatModels: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo'],
+    embeddingModels: ['text-embedding-3-small', 'text-embedding-3-large'],
+  },
+  {
+    id: 'anthropic',
+    name: 'Anthropic',
+    provider: 'anthropic',
+    baseUrl: 'https://api.anthropic.com',
+    chatModels: ['claude-sonnet-4-20250514', 'claude-haiku-4-5-20251001'],
+    embeddingModels: [],
+  },
   {
     id: 'deepseek',
     name: 'DeepSeek',
-    baseUrl: 'https://api.deepseek.com/anthropic',
-    models: ['deepseek-v4-pro', 'deepseek-v4-flash'],
-  },
-  {
-    id: 'mimo',
-    name: 'Xiaomi MiMo',
-    baseUrl: 'https://token-plan-cn.xiaomimimo.com/anthropic',
-    models: ['mimo-v2.5-pro', 'mimo-v2-pro'],
+    provider: 'openai_compatible',
+    baseUrl: 'https://api.deepseek.com/v1',
+    chatModels: ['deepseek-chat', 'deepseek-reasoner'],
+    embeddingModels: [],
   },
   {
     id: 'minimax',
     name: 'MiniMax',
-    baseUrl: 'https://api.minimaxi.com/anthropic',
-    models: ['MiniMax-M2.7'],
-  },
-  {
-    id: 'zhipu',
-    name: 'Zhipu GLM',
-    baseUrl: 'https://open.bigmodel.cn/api/anthropic',
-    models: ['glm-5'],
+    provider: 'minimax',
+    baseUrl: 'https://api.minimaxi.com/v1',
+    chatModels: ['MiniMax-M2.7'],
+    embeddingModels: ['text-embedding-003'],
   },
 ]
 
@@ -74,11 +84,13 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
   const embeddingRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [form, setForm] = useState({
-    provider: '',
-    baseUrl: '',
-    apiKey: '',
-    model: '',
-    embeddingProvider: '',
+    chatPreset: '',
+    chatProvider: '' as ChatProvider | '',
+    chatBaseUrl: '',
+    chatApiKey: '',
+    chatModel: '',
+    embeddingPreset: '',
+    embeddingProvider: '' as EmbeddingProvider | '',
     embeddingBaseUrl: '',
     embeddingApiKey: '',
     embeddingModel: '',
@@ -103,16 +115,18 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
   useEffect(() => {
     if (config) {
       setForm({
-        provider: config.provider || '',
-        baseUrl: config.baseUrl || '',
-        apiKey: config.apiKey || '',
-        model: config.model || '',
-        embeddingProvider: config.embeddingProvider || '',
-        embeddingBaseUrl: config.embeddingBaseUrl || '',
-        embeddingApiKey: config.embeddingApiKey || '',
-        embeddingModel: config.embeddingModel || '',
+        chatPreset: config.chat.preset || '',
+        chatProvider: config.chat.provider || '',
+        chatBaseUrl: config.chat.baseUrl || '',
+        chatApiKey: config.chat.apiKey || '',
+        chatModel: config.chat.model || '',
+        embeddingPreset: config.embedding.preset || '',
+        embeddingProvider: config.embedding.provider || '',
+        embeddingBaseUrl: config.embedding.baseUrl || '',
+        embeddingApiKey: config.embedding.apiKey || '',
+        embeddingModel: config.embedding.model || '',
         researchBackground: '',
-        globalUserProfile: config.globalUserProfile || '',
+        globalUserProfile: config.research.globalProfile || '',
         nickname: config.nickname || '',
         avatar: config.avatar || '',
       })
@@ -137,48 +151,60 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
     reader.readAsDataURL(file)
   }
 
-  const handleProviderChange = (providerId: string, target: 'analysis' | 'embedding') => {
-    const provider = providers.find(p => p.id === providerId)
-    if (!provider) return
+  const handleProviderChange = (presetId: string, target: 'analysis' | 'embedding') => {
+    const preset = providerPresets.find(p => p.id === presetId)
+    if (!preset) return
 
     if (target === 'analysis') {
       setForm(f => ({
         ...f,
-        provider: providerId,
-        baseUrl: provider.baseUrl,
-        model: provider.models[0] || '',
+        chatPreset: presetId,
+        chatProvider: preset.provider as ChatProvider,
+        chatBaseUrl: preset.baseUrl,
+        chatModel: preset.chatModels[0] || '',
       }))
     } else {
       setForm(f => ({
         ...f,
-        embeddingProvider: providerId,
-        embeddingBaseUrl: provider.baseUrl,
-        embeddingModel: provider.models[0] || '',
+        embeddingPreset: presetId,
+        embeddingProvider: preset.provider as EmbeddingProvider,
+        embeddingBaseUrl: preset.baseUrl,
+        embeddingModel: preset.embeddingModels[0] || '',
       }))
     }
   }
 
   const handleCustomProvider = (target: 'analysis' | 'embedding') => {
     if (target === 'analysis') {
-      setForm(f => ({ ...f, provider: 'custom', model: '' }))
+      setForm(f => ({ ...f, chatPreset: 'custom', chatProvider: 'custom_openai_compatible', chatModel: '' }))
     } else {
-      setForm(f => ({ ...f, embeddingProvider: 'custom', embeddingModel: '' }))
+      setForm(f => ({ ...f, embeddingPreset: 'custom', embeddingProvider: 'custom_openai_compatible', embeddingModel: '' }))
     }
   }
 
   const handleSave = async () => {
-    const payload: AppConfig = {
-      provider: form.provider,
-      baseUrl: form.baseUrl,
-      apiKey: form.apiKey,
-      model: form.model,
-      embeddingProvider: form.embeddingProvider || undefined,
-      embeddingBaseUrl: form.embeddingBaseUrl || undefined,
-      embeddingApiKey: form.embeddingApiKey || undefined,
-      embeddingModel: form.embeddingModel || undefined,
+    const payload: NormalizedAppConfig = {
+      chat: {
+        provider: (form.chatProvider || 'openai_compatible') as ChatProvider,
+        preset: form.chatPreset || '',
+        apiKey: form.chatApiKey,
+        baseUrl: form.chatBaseUrl,
+        model: form.chatModel,
+        temperature: config?.chat.temperature ?? 0.2,
+        maxTokens: config?.chat.maxTokens ?? 4096,
+      },
+      embedding: {
+        provider: (form.embeddingProvider || 'openai_compatible') as EmbeddingProvider,
+        preset: form.embeddingPreset || '',
+        apiKey: form.embeddingApiKey,
+        baseUrl: form.embeddingBaseUrl,
+        model: form.embeddingModel,
+        dimensions: config?.embedding.dimensions ?? 1536,
+      },
+      knowledge: config?.knowledge ?? { enabled: true, autoIndex: true, contextTokenLimit: 8000 },
+      research: { globalProfile: form.globalUserProfile },
       nickname: form.nickname || undefined,
       avatar: form.avatar || undefined,
-      globalUserProfile: form.globalUserProfile || undefined,
     }
     await saveConfig(payload)
     message.success('设置已保存')
@@ -188,13 +214,16 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
     target: 'analysis' | 'embedding',
     title: string,
     icon: React.ReactNode,
-    providerId: string,
+    presetId: string,
     baseUrl: string,
     apiKey: string,
     model: string,
   ) => {
-    const currentProvider = providers.find(p => p.id === providerId)
-    const isCustom = providerId === 'custom'
+    const currentPreset = providerPresets.find(p => p.id === presetId)
+    const isCustom = presetId === 'custom'
+    const models = target === 'analysis'
+      ? (currentPreset?.chatModels || [])
+      : (currentPreset?.embeddingModels || [])
 
     return (
       <div className="wonder-settings-field">
@@ -204,14 +233,14 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
 
         {/* 服务商选择 */}
         <div className="wonder-provider-grid" style={{ marginBottom: 12 }}>
-          {providers.map(provider => (
+          {providerPresets.map(preset => (
             <button
-              key={provider.id}
-              className={`wonder-provider-card ${providerId === provider.id ? 'wonder-provider-card--active' : ''}`}
-              onClick={() => handleProviderChange(provider.id, target)}
+              key={preset.id}
+              className={`wonder-provider-card ${presetId === preset.id ? 'wonder-provider-card--active' : ''}`}
+              onClick={() => handleProviderChange(preset.id, target)}
             >
-              <span className="wonder-provider-name">{provider.name}</span>
-              {providerId === provider.id && (
+              <span className="wonder-provider-name">{preset.name}</span>
+              {presetId === preset.id && (
                 <CheckOutlined className="wonder-provider-check" />
               )}
             </button>
@@ -228,18 +257,18 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
         </div>
 
         {/* 配置详情 */}
-        {(providerId || isCustom) && (
+        {(presetId || isCustom) && (
           <>
             <div style={{ marginBottom: 12 }}>
               <Typography.Text style={{ display: 'block', marginBottom: 4, color: 'var(--ink-caption)', fontSize: 12 }}>
                 API Base URL
               </Typography.Text>
               <Input
-                placeholder="https://api.example.com/anthropic"
+                placeholder="https://api.example.com/v1"
                 value={baseUrl}
                 onChange={e => {
                   if (target === 'analysis') {
-                    setForm(f => ({ ...f, baseUrl: e.target.value }))
+                    setForm(f => ({ ...f, chatBaseUrl: e.target.value }))
                   } else {
                     setForm(f => ({ ...f, embeddingBaseUrl: e.target.value }))
                   }
@@ -250,7 +279,7 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
             <div style={{ marginBottom: 12 }}>
               <Typography.Text style={{ display: 'block', marginBottom: 4, color: 'var(--ink-caption)', fontSize: 12 }}>
                 <KeyOutlined /> API Key
-                {target === 'embedding' && form.apiKey && (
+                {target === 'embedding' && form.chatApiKey && (
                   <span style={{ marginLeft: 8, color: 'var(--ink-muted)', fontSize: 11 }}>
                     (留空则复用分析模型的 Key)
                   </span>
@@ -261,7 +290,7 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
                 value={apiKey}
                 onChange={e => {
                   if (target === 'analysis') {
-                    setForm(f => ({ ...f, apiKey: e.target.value }))
+                    setForm(f => ({ ...f, chatApiKey: e.target.value }))
                   } else {
                     setForm(f => ({ ...f, embeddingApiKey: e.target.value }))
                   }
@@ -279,7 +308,7 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
                   value={model}
                   onChange={e => {
                     if (target === 'analysis') {
-                      setForm(f => ({ ...f, model: e.target.value }))
+                      setForm(f => ({ ...f, chatModel: e.target.value }))
                     } else {
                       setForm(f => ({ ...f, embeddingModel: e.target.value }))
                     }
@@ -292,12 +321,12 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
                   value={model || undefined}
                   onChange={value => {
                     if (target === 'analysis') {
-                      setForm(f => ({ ...f, model: value }))
+                      setForm(f => ({ ...f, chatModel: value }))
                     } else {
                       setForm(f => ({ ...f, embeddingModel: value }))
                     }
                   }}
-                  options={currentProvider?.models.map(m => ({ label: m, value: m }))}
+                  options={models.map(m => ({ label: m, value: m }))}
                   showSearch
                 />
               )}
@@ -351,10 +380,10 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
                   'analysis',
                   '分析模型',
                   <RobotOutlined />,
-                  form.provider,
-                  form.baseUrl,
-                  form.apiKey,
-                  form.model,
+                  form.chatPreset,
+                  form.chatBaseUrl,
+                  form.chatApiKey,
+                  form.chatModel,
                 )}
               </div>
 
@@ -367,7 +396,7 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
                   'embedding',
                   'Embedding 模型',
                   <ExperimentOutlined />,
-                  form.embeddingProvider,
+                  form.embeddingPreset,
                   form.embeddingBaseUrl,
                   form.embeddingApiKey || '',
                   form.embeddingModel,

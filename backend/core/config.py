@@ -38,6 +38,33 @@ DEFAULT_CONFIG = {
         "auto_index": True,
         "max_context_tokens": 8000,
     },
+    "normalized_config": {
+        "chat": {
+            "provider": "anthropic",
+            "preset": "anthropic",
+            "apiKey": "",
+            "baseUrl": "https://api.anthropic.com",
+            "model": "claude-sonnet-4-20250514",
+            "temperature": 0.2,
+            "maxTokens": 4096,
+        },
+        "embedding": {
+            "provider": "openai_compatible",
+            "preset": "openai",
+            "apiKey": "",
+            "baseUrl": "https://api.openai.com/v1",
+            "model": "text-embedding-3-small",
+            "dimensions": 1536,
+        },
+        "knowledge": {
+            "enabled": True,
+            "autoIndex": True,
+            "contextTokenLimit": 8000,
+        },
+        "research": {
+            "globalProfile": "",
+        },
+    },
 }
 
 
@@ -69,3 +96,66 @@ class ConfigManager:
                 self._deep_merge(base[key], value)
             else:
                 base[key] = value
+
+    def load_normalized(self) -> dict:
+        """Load config, returning normalized_config if present, else migrating from legacy."""
+        config = self.load()
+        if "normalized_config" in config:
+            return config["normalized_config"]
+        return self._migrate_to_normalized(config)
+
+    def _migrate_to_normalized(self, config: dict) -> dict:
+        model = config.get("model", {})
+        embedding = config.get("embedding", {})
+        knowledge = config.get("knowledge", {})
+        research = config.get("research", {})
+
+        normalized = {
+            "chat": {
+                "provider": self._map_provider(model.get("provider", "")),
+                "preset": model.get("provider", "").lower(),
+                "apiKey": model.get("api_key", ""),
+                "baseUrl": model.get("base_url", "https://api.anthropic.com"),
+                "model": model.get("model_name", "claude-sonnet-4-20250514"),
+                "temperature": 0.2,
+                "maxTokens": 4096,
+            },
+            "embedding": {
+                "provider": self._map_embedding_provider(embedding.get("provider", "")),
+                "preset": embedding.get("provider", "").lower(),
+                "apiKey": embedding.get("api_key", ""),
+                "baseUrl": embedding.get("base_url", "https://api.openai.com/v1"),
+                "model": embedding.get("model_name", "text-embedding-3-small"),
+                "dimensions": embedding.get("dimensions", 1536),
+            },
+            "knowledge": {
+                "enabled": knowledge.get("enabled", True),
+                "autoIndex": knowledge.get("auto_index", True),
+                "contextTokenLimit": knowledge.get("max_context_tokens", 8000),
+            },
+            "research": {
+                "globalProfile": research.get("globalProfile", ""),
+            },
+        }
+        # Persist the migrated normalized config
+        config["normalized_config"] = normalized
+        self.save(config)
+        return normalized
+
+    def _map_provider(self, raw: str) -> str:
+        lower = raw.lower()
+        if lower in ("anthropic",):
+            return "anthropic"
+        if lower in ("openai", "openai_compatible"):
+            return "openai_compatible"
+        if lower in ("minimax",):
+            return "minimax"
+        return "custom_openai_compatible"
+
+    def _map_embedding_provider(self, raw: str) -> str:
+        lower = raw.lower()
+        if lower in ("openai", "openai_compatible"):
+            return "openai_compatible"
+        if lower in ("minimax",):
+            return "minimax"
+        return "openai_compatible"

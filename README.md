@@ -9,12 +9,26 @@
 
 | 层 | 技术 |
 |---|------|
-| 桌面框架 | Tauri v2 |
-| 前端 | Vue 3 + TypeScript + Vite + Pinia + Element Plus |
-| 后端 | Python FastAPI |
-| 向量数据库 | ChromaDB (cosine) |
-| 元数据存储 | SQLite |
-| 嵌入服务 | OpenAI 兼容 API |
+| 桌面框架 | Electron |
+| 前端 | React 19 + TypeScript + Vite + Zustand + Ant Design |
+| Node 网关 | Hono (HTTP) + better-sqlite3 (SQLite) |
+| Python AI Core | FastAPI + ChromaDB (cosine) |
+| Provider 适配层 | OpenAI SDK + Anthropic SDK（Protocol 接口） |
+
+## 架构
+
+```
+┌─────────────┐     ┌──────────────┐     ┌──────────────────┐
+│  React 前端  │────▶│  Node/Hono   │────▶│  Python AI Core  │
+│  (Electron)  │◀────│  (SQLite KV)  │◀────│  (FastAPI + RAG) │
+└─────────────┘     └──────────────┘     └──────────────────┘
+```
+
+**边界规则：**
+- 前端只调用 Node/Hono API，不直接访问 Python
+- Node/Hono 负责 SQLite 持久化、请求校验、配置加载、转发到 Python
+- Python AI Core 是唯一执行 LLM 调用和 Embedding 的层
+- Provider 适配层通过 Protocol 接口支持 Anthropic、OpenAI 兼容、MiniMax 等多个 provider
 
 ## 功能概览
 
@@ -32,17 +46,18 @@
 - 本地模式：基于已分析的历史文献进行多轮追问
 - 知识库模式（RAG）：基于知识库中的文档集合进行检索增强问答，答案附带来源片段
 
-**知识库** — 文档上传 → 自动分块 → 向量入库，支持搜索知识片段、查看文档详情（阅读卡片 / 关联分析 / 写作素材 / 四个 Tab）、删除管理。
+**知识库** — 文档上传 → 自动分块 → 向量入库，支持搜索知识片段、查看文档详情、删除管理。
 
 **历史记录** — 浏览所有已分析记录，查看完整报告，支持删除。
 
-**设置** — 四大配置区：
-- 模型配置：服务商预设（MiniMax / OpenAI / Anthropic / DeepSeek / MiMo / 自定义）、API Key、Base URL、模型名
-- 研究偏好：研究背景、写作风格（影响 Agent 分析角度）
-- Embedding 配置：嵌入服务商、模型、维度
-- 知识库配置：启用开关、自动入库开关、上下文 Token 上限
+**设置** — 配置 Chat Provider、Embedding Provider、研究偏好、知识库参数。
 
-### 后端（API 服务）
+### 后端（Python AI Core）
+
+**Provider 适配层** — 统一接口支持多个 LLM/Embedding provider：
+- `ChatProvider`：`chat()`, `stream_chat()`, `health_check()`
+- `EmbeddingProvider`：`embed()`, `health_check()`
+- 内置适配器：`anthropic`, `openai_compatible`, `minimax`
 
 **分析引擎** — 4 个专业 Agent 串联协作：
 1. **文献解析 Agent** — 提取核心问题、方法流程、数据集、评价指标、创新点、局限性
@@ -56,61 +71,65 @@
 
 **问答 Agent** — 基于 RAG 检索结果进行溯源问答，答案引用具体片段。
 
-**Orchestrator** — 纯规则路由（无额外 LLM 调用），根据任务类型分发到对应 Agent。
-
 ### API 端点
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| POST | `/api/analysis/single` | 单篇分析（上传文件） |
-| POST | `/api/analysis/batch` | 批量分析 |
+| POST | `/api/analysis/single` | 单篇分析（SSE 流式） |
+| POST | `/api/qa` | 追溯问答 |
 | GET | `/api/history` | 历史记录列表 |
 | GET | `/api/history/{id}` | 历史记录详情 |
 | DELETE | `/api/history/{id}` | 删除历史记录 |
 | POST | `/api/knowledge/documents` | 上传文档入库 |
 | GET | `/api/knowledge/documents` | 知识库文档列表 |
-| GET | `/api/knowledge/documents/{id}` | 文档详情（含分析结果） |
+| GET | `/api/knowledge/documents/{id}` | 文档详情 |
 | DELETE | `/api/knowledge/documents/{id}` | 删除文档 |
 | POST | `/api/knowledge/ask` | RAG 问答 |
 | POST | `/api/knowledge/search` | 知识片段搜索 |
-| GET/POST | `/api/config` | 配置读写 |
-| GET | `/api/health` | 健康检查 |
+| GET | `/api/config` | 读取配置 |
+| PUT | `/api/config` | 更新配置 |
+| GET | `/api/health` | Node 健康检查 |
+| GET | `/api/health/ai-core` | Python AI Core 健康检查 |
+| GET | `/api/health/llm` | Chat Provider 健康检查 |
+| POST | `/api/config/health/chat` | Chat Provider 连通性检查 |
+| POST | `/api/config/health/embedding` | Embedding Provider 连通性检查 |
 
 ## 项目结构
 
 ```txt
-note-forge/
-├── src/                        # 前端源码
-│   ├── views/                  # 页面组件
-│   │   ├── Home.vue            # 单篇分析
-│   │   ├── Batch.vue           # 批量矩阵
-│   │   ├── Discovery.vue       # 文献发现
-│   │   ├── CitationNetwork.vue # 引用网络
-│   │   ├── QA.vue              # 追溯问答
-│   │   ├── Knowledge.vue       # 知识库管理
-│   │   ├── History.vue         # 历史记录
-│   │   ├── HistoryDetail.vue   # 记录详情
-│   │   └── Settings.vue        # 设置
-│   ├── components/             # 通用组件
-│   ├── stores/                 # Pinia 状态管理
-│   ├── lib/
-│   │   ├── api/                # 后端 HTTP 客户端
-│   │   ├── agents/             # 前端 Agent（本地 LLM 调用）
-│   │   ├── analysis/           # 分析 Pipeline
-│   │   ├── core/               # 配置、历史、存储适配器
-│   │   ├── discovery/          # Semantic Scholar 集成
-│   │   ├── export/             # BibTeX / Markdown 导出
-│   │   └── llm/                # LLM 类型定义
-│   └── styles/                 # 设计系统
-├── backend/                    # Python 后端
-│   ├── api/                    # FastAPI 路由
-│   ├── agents/                 # 多 Agent 系统
-│   ├── core/                   # 配置、文件读取、分块、嵌入、存储
-│   ├── rag/                    # RAG 检索与索引
-│   ├── models/                 # Pydantic 数据模型
-│   └── main.py                 # FastAPI 入口
-├── src-tauri/                  # Tauri 配置与 Rust 壳
-├── data/                       # 运行时数据（SQLite、ChromaDB、上传文件）
+wonder/
+├── src/                            # React 前端源码
+│   ├── pages/                      # 页面组件
+│   ├── components/                 # 通用组件
+│   ├── stores/                     # Zustand 状态管理
+│   ├── types/                      # TypeScript 类型定义
+│   │   ├── config.ts               # NormalizedAppConfig
+│   │   └── analysis.ts             # AnalysisResult, AppConfig (legacy)
+│   └── services/                   # API 客户端
+├── server/                         # Node/Hono 网关
+│   ├── routes/                     # API 路由（analysis, qa, config, ...）
+│   ├── services/                   # storage, python-backend
+│   ├── config/                     # normalize.ts — 配置兼容层
+│   ├── db/                         # SQLite schema
+│   └── index.ts                    # 入口
+├── backend/                        # Python AI Core
+│   ├── api/                        # FastAPI 路由
+│   ├── agents/                     # 多 Agent 系统
+│   ├── core/
+│   │   ├── providers/              # Provider 适配层
+│   │   │   ├── base.py             # ChatProvider, EmbeddingProvider Protocol
+│   │   │   ├── anthropic.py        # Anthropic 适配器
+│   │   │   ├── openai_compatible.py# OpenAI 兼容适配器
+│   │   │   └── factory.py          # Provider 工厂
+│   │   ├── config.py               # ConfigManager (JSON file)
+│   │   ├── embedding.py            # EmbeddingClient
+│   │   └── llm_client.py           # Legacy + provider-aware call_llm
+│   ├── rag/                        # RAG 检索与索引
+│   ├── models/                     # Pydantic 数据模型
+│   └── main.py                     # FastAPI 入口
+├── tests/server/                   # Node 测试
+├── backend/tests/                  # Python 测试
+├── data/                           # 运行时数据
 └── package.json
 ```
 
@@ -120,71 +139,56 @@ note-forge/
 
 - Node.js >= 18
 - Python >= 3.10
-- Rust（Tauri 构建需要）
 
-### 后端
+### Python AI Core
 
 ```bash
-# 安装 Python 依赖
 pip install -r backend/requirements.txt
 
-# 启动 API 服务（默认 8000 端口）
+# 启动 AI Core（默认 8000 端口）
 python -m uvicorn backend.main:app --port 8000
 ```
 
-### 前端（开发模式）
+### Node 网关 + 前端
 
 ```bash
-# 安装依赖
 npm install
 
-# 启动 Tauri 开发窗口
-npm run tauri dev
+# 开发模式（同时启动 Vite + Node）
+npm run dev
+
+# Electron 桌面模式
+npm run dev:electron
 ```
 
-### 构建桌面安装包
+### 构建
 
 ```bash
-npm run tauri:build
+npm run build:installer
 ```
-
-构建完成后，Windows NSIS 安装包位于：
-
-```txt
-src-tauri/target/release/bundle/nsis/
-```
-
-## 下载与版本发布
-
-当前目标版本为 `v0.1.0`，先只发布 Windows 安装包。发布仓库：
-
-[https://github.com/BZ2116/wonder](https://github.com/BZ2116/wonder)
-
-发布流程采用本地构建 + GitHub Release 手动上传：
-
-```bash
-npm run test
-npm run build
-npm run tauri:build
-git tag v0.1.0
-git push origin main
-git push origin v0.1.0
-```
-
-然后在 GitHub Releases 中创建 `Wonder v0.1.0`，上传 `src-tauri/target/release/bundle/nsis/` 下生成的 `.exe` 安装包。
-
-应用内自动更新暂不包含在 `v0.1.0` 中，后续可以基于 Tauri updater 插件接入更新提醒和安装流程。详细发布清单见 [docs/release.md](docs/release.md)。
 
 ## 配置
 
-启动后在「设置」页面填写：
+启动后在「设置」页面配置：
 
-1. **模型配置** — 选择服务商，填入 API Key 和 Base URL
-2. **研究偏好** — 描述你的研究方向，帮助 Agent 更精准地关联分析
-3. **Embedding** — 配置向量嵌入服务（用于知识库）
-4. **知识库** — 启用 / 禁用、自动入库、上下文 Token 上限
+1. **Chat Provider** — 选择 provider（anthropic / openai_compatible / minimax / custom），填入 API Key、Base URL、模型名
+2. **Embedding Provider** — 独立配置嵌入服务 provider 和参数
+3. **研究偏好** — 描述你的研究方向，帮助 Agent 更精准地关联分析
+4. **知识库** — 启用/禁用、自动入库、上下文 Token 上限
 
-配置存储在 `data/config.json`。
+配置存储在两处：
+- Node 侧：SQLite `config` 表（KV 存储，`appConfig` key 存 JSON）
+- Python 侧：`data/config.json`（含 `normalized_config` 和 legacy keys）
+
+## 扩展 Provider
+
+添加新的 Chat Provider：
+
+1. 在 `backend/core/providers/` 下新建适配器文件，实现 `ChatProvider` Protocol
+2. 在 `backend/core/providers/factory.py` 的 `_PROVIDER_MAP` 中注册
+3. 在 `src/types/config.ts` 的 `ChatProvider` 联合类型中添加新值
+
+详见 `docs/provider-extension.md`。
 
 ## 设计系统
 

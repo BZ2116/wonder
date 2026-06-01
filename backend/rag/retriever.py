@@ -26,6 +26,8 @@ class RAGRetriever:
         top_k_chunks: int = 5,
         max_context_tokens: int = 8000
     ) -> RetrievalResult:
+        if not query or not query.strip():
+            raise ValueError("query must not be empty")
         query_embedding = self.embedding.embed_single(query)
 
         summary_filters: List[Dict[str, Any]] = [{"chunk_type": "summary"}]

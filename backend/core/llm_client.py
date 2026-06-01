@@ -79,18 +79,26 @@ def call_llm(
     max_tokens: int = 3000,
     api_key: str = "",
     base_url: str = "",
+    provider_name: str = "anthropic",
 ) -> str:
+    from .providers.factory import create_chat_provider
+    from .providers.base import ProviderError
+
+    provider = create_chat_provider({
+        "provider": provider_name,
+        "api_key": api_key,
+        "base_url": base_url,
+        "model": model,
+    })
     try:
-        return call_anthropic_llm(
-            api_key=api_key,
-            base_url=base_url,
+        return provider.chat(
+            messages=[{"role": "user", "content": user_prompt}],
             model=model,
-            system_prompt=system_prompt,
-            user_prompt=user_prompt,
             temperature=temperature,
             max_tokens=max_tokens,
+            system=system_prompt,
         )
-    except LLMCallError:
-        raise
+    except ProviderError as e:
+        raise LLMCallError(str(e)) from e
     except Exception as e:
         raise LLMCallError(f"LLM call failed: {format_llm_error(e)}") from e
