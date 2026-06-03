@@ -93,7 +93,7 @@ interface SettingsModalProps {
 }
 
 export default function SettingsModal({ open, onClose }: SettingsModalProps) {
-  const { config, loadConfig, saveConfig } = useConfigStore()
+  const { config, loadConfig, saveConfig, saving } = useConfigStore()
   const { settingsTarget } = useUIStore()
   const [activeTab, setActiveTab] = useState<SettingsTab>('api')
   const analysisRef = useRef<HTMLDivElement>(null)
@@ -252,27 +252,43 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
   })
 
   const handleSaveChat = async () => {
-    const payload = buildFullConfig()
-    await saveConfig(payload)
-    message.success('分析模型设置已保存')
+    try {
+      const payload = buildFullConfig()
+      await saveConfig(payload)
+      message.success('分析模型设置已保存')
+    } catch {
+      message.error('保存失败，请重试')
+    }
   }
 
   const handleSaveEmbedding = async () => {
-    const payload = buildFullConfig()
-    await saveConfig(payload)
-    message.success('Embedding 模型设置已保存')
+    try {
+      const payload = buildFullConfig()
+      await saveConfig(payload)
+      message.success('Embedding 模型设置已保存')
+    } catch {
+      message.error('保存失败，请重试')
+    }
   }
 
   const handleSaveProfile = async () => {
-    const payload = buildFullConfig()
-    await saveConfig(payload)
-    message.success('个人资料已保存')
+    try {
+      const payload = buildFullConfig()
+      await saveConfig(payload)
+      message.success('个人资料已保存')
+    } catch {
+      message.error('保存失败，请重试')
+    }
   }
 
   const handleSaveResearch = async () => {
-    const payload = buildFullConfig()
-    await saveConfig(payload)
-    message.success('研究背景已保存')
+    try {
+      const payload = buildFullConfig()
+      await saveConfig(payload)
+      message.success('研究背景已保存')
+    } catch {
+      message.error('保存失败，请重试')
+    }
   }
 
   const renderProviderSection = (
@@ -478,7 +494,7 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
               )}
             </div>
 
-            <Button type="primary" onClick={onSave}>
+            <Button type="primary" onClick={onSave} loading={saving}>
               保存{target === 'analysis' ? '分析模型' : 'Embedding 模型'}设置
             </Button>
           </>
@@ -601,7 +617,7 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
                 />
               </div>
 
-              <Button type="primary" onClick={handleSaveResearch} style={{ marginTop: 8 }}>
+              <Button type="primary" onClick={handleSaveResearch} loading={saving} style={{ marginTop: 8 }}>
                 保存研究背景
               </Button>
             </div>
@@ -682,7 +698,7 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
                 />
               </div>
 
-              <Button type="primary" onClick={handleSaveProfile} style={{ marginTop: 8 }}>
+              <Button type="primary" onClick={handleSaveProfile} loading={saving} style={{ marginTop: 8 }}>
                 保存个人资料
               </Button>
             </div>
