@@ -15,8 +15,11 @@
     "test:unit": "vitest run",
     "test:server": "vitest run tests/server",
     "test:python": "py -3.13 -m pytest backend/tests -q",
+    "test:smoke": "vitest run tests/smoke",
+    "test:stress": "vitest run tests/stress",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.server.json --noEmit && tsc -p tsconfig.electron.json --noEmit",
-    "verify": "npm run typecheck && npm run test:unit && npm run test:python"
+    "verify": "npm run typecheck && npm run test:unit && npm run test:python",
+    "verify:full": "npm run verify && npm run test:smoke && npm run test:stress"
   },
   "keywords": [],
   "author": "Bruce Zhao",
@@ -46,6 +49,7 @@
     "concurrently": "^10.0.0",
     "electron": "^41.7.1",
     "electron-builder": "^26.8.1",
+    "electron-winstaller": "^5.4.0",
     "tsx": "^4.22.3",
     "typescript": "^6.0.3",
     "vite": "^8.0.14",
