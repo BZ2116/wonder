@@ -104,6 +104,30 @@ describe('discoveryRoutes - candidates', () => {
     const res = await app.request('/api/discovery/candidates/nonexistent')
     expect(res.status).toBe(404)
   })
+
+  it('POST /candidates returns 400 when paperId is missing', async () => {
+    const { app } = createApp()
+    const res = await app.request('/api/discovery/candidates', {
+      method: 'POST',
+      body: JSON.stringify({ title: 'Paper without ID' }),
+      headers: { 'Content-Type': 'application/json' },
+    })
+    expect(res.status).toBe(400)
+    const body = await res.json()
+    expect(body.error).toBeDefined()
+  })
+
+  it('POST /candidates returns 400 when title is missing', async () => {
+    const { app } = createApp()
+    const res = await app.request('/api/discovery/candidates', {
+      method: 'POST',
+      body: JSON.stringify({ paperId: 's2-789' }),
+      headers: { 'Content-Type': 'application/json' },
+    })
+    expect(res.status).toBe(400)
+    const body = await res.json()
+    expect(body.error).toBeDefined()
+  })
 })
 
 describe('discoveryRoutes - OpenAlex proxy', () => {

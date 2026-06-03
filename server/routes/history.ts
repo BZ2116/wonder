@@ -1,11 +1,14 @@
 import { Hono } from 'hono'
 import { StorageService } from '../services/storage'
 
+const MAX_HISTORY_LIMIT = 500
+
 export function historyRoutes(storage: StorageService) {
   const app = new Hono()
 
   app.get('/', (c) => {
-    const limit = parseInt(c.req.query('limit') || '50')
+    const raw = parseInt(c.req.query('limit') || '50', 10)
+    const limit = Number.isFinite(raw) ? Math.min(MAX_HISTORY_LIMIT, Math.max(1, raw)) : 50
     const history = storage.listHistory(limit)
     return c.json(history)
   })

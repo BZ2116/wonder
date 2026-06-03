@@ -119,6 +119,40 @@ describe('configRoutes', () => {
     expect(normalized.research.globalProfile).toBe('')
   })
 
+  it('PUT stores normalized config and does not duplicate malformed keys', async () => {
+    const normalized = {
+      chat: {
+        provider: 'anthropic', preset: 'anthropic',
+        apiKey: 'sk-test', baseUrl: 'https://api.anthropic.com',
+        model: 'claude-sonnet-4-20250514', temperature: 0.2, maxTokens: 4096,
+      },
+      embedding: {
+        provider: 'openai_compatible', preset: 'openai',
+        apiKey: '', baseUrl: 'https://api.openai.com/v1',
+        model: 'text-embedding-3-small', dimensions: 1536,
+      },
+      knowledge: { enabled: true, autoIndex: true, contextTokenLimit: 8000 },
+      research: { globalProfile: 'Test profile' },
+    }
+
+    const res = await app.request('/api/config', {
+      method: 'PUT',
+      body: JSON.stringify({ normalizedConfig: normalized }),
+      headers: { 'Content-Type': 'application/json' },
+    })
+
+    expect((await res.json()).success).toBe(true)
+
+    // Verify the stored appConfig is valid JSON with expected structure
+    const stored = storage.getConfig('appConfig')
+    expect(stored).toBeDefined()
+    const parsed = JSON.parse(stored!)
+    expect(parsed.chat.provider).toBe('anthropic')
+    expect(parsed.chat.apiKey).toBe('sk-test')
+    // Should not have accumulated duplicate keys
+    expect(parsed.research.globalProfile).toBe('Test profile')
+  })
+
   it('PUT returns syncWarning when Python config sync fails', async () => {
     // Create a read-only directory to trigger write failure
     const readOnlyDir = path.join(__dirname, 'readonly-test-dir')

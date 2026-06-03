@@ -37,6 +37,22 @@ describe('historyRoutes - GET /', () => {
 
     expect(storage.listHistory).toHaveBeenCalledWith(10)
   })
+
+  it('caps limit to 500', async () => {
+    const { app, storage } = createApp()
+
+    await app.request('/api/history?limit=999999')
+
+    expect(storage.listHistory).toHaveBeenCalledWith(500)
+  })
+
+  it('handles NaN limit by falling back to 50', async () => {
+    const { app, storage } = createApp()
+
+    await app.request('/api/history?limit=abc')
+
+    expect(storage.listHistory).toHaveBeenCalledWith(50)
+  })
 })
 
 describe('historyRoutes - GET /:id', () => {

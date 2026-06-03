@@ -53,7 +53,7 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
       const kbs = await api.get<KnowledgeBase[]>('/api/knowledge-bases')
       set({ knowledgeBases: kbs, kbLoading: false, error: null, kbLoaded: true })
     } catch (err) {
-      set({ kbLoading: false, error: err instanceof Error ? err.message : String(err) })
+      set({ kbLoading: false, kbLoaded: false, error: err instanceof Error ? err.message : String(err) })
     }
   },
   createKnowledgeBase: async (name, description, readme) => {

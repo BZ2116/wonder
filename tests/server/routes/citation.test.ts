@@ -150,6 +150,36 @@ describe('citationRoutes - GET /graph', () => {
     }))
   })
 
+  it('caps depth to 2 even if higher value requested', async () => {
+    const { app } = createApp()
+    const seed = makeOaWork('Wseed', 'Seed Paper')
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      const u = url as string
+      if (u.includes('/works/Wseed')) {
+        return { ok: true, json: async () => seed }
+      }
+      return { ok: true, json: async () => ({ results: [], meta: { count: 0 } }) }
+    }))
+
+    const res = await app.request('/api/citation/graph?paperId=Wseed&depth=99')
+    expect(res.status).toBe(200)
+  })
+
+  it('caps limit to 50 even if higher value requested', async () => {
+    const { app } = createApp()
+    const seed = makeOaWork('Wseed', 'Seed Paper')
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      const u = url as string
+      if (u.includes('/works/Wseed')) {
+        return { ok: true, json: async () => seed }
+      }
+      return { ok: true, json: async () => ({ results: [], meta: { count: 0 } }) }
+    }))
+
+    const res = await app.request('/api/citation/graph?paperId=Wseed&limit=999')
+    expect(res.status).toBe(200)
+  })
+
   it('deduplicates edges', async () => {
     const { app } = createApp()
     const ref1 = makeOaWork('Wref1', 'Ref 1')

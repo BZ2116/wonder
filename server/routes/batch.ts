@@ -23,7 +23,7 @@ export function batchRoutes(storage: StorageService) {
       knowledge_base_id: body.knowledgeBaseId,
     })
 
-    const items = body.files.map((f) => {
+    const itemIds = body.files.map((f) => {
       const itemId = randomUUID()
       storage.createBatchItem({
         id: itemId,
@@ -31,8 +31,11 @@ export function batchRoutes(storage: StorageService) {
         file_name: f.fileName,
         file_type: f.fileType,
       })
-      return storage.getBatchItemsByRunId(runId).find(i => i.id === itemId)!
+      return itemId
     })
+
+    const allItems = storage.getBatchItemsByRunId(runId)
+    const items = itemIds.map(id => allItems.find(i => i.id === id)!)
 
     return c.json({ id: runId, name: body.name, items })
   })

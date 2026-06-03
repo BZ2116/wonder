@@ -46,6 +46,8 @@ export function discoveryRoutes(storage: StorageService) {
 
   app.post('/candidates', async (c) => {
     const body = await c.req.json()
+    if (!body.paperId) return c.json({ error: 'paperId is required' }, 400)
+    if (!body.title) return c.json({ error: 'title is required' }, 400)
     const id = body.id || randomUUID()
     storage.upsertDiscoveryCandidate({
       id,

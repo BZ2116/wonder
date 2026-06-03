@@ -64,6 +64,9 @@ export function configRoutes(storage: StorageService) {
 
   app.put('/', async (c) => {
     const body = await c.req.json<Record<string, unknown>>()
+    if (!body.normalizedConfig && Object.keys(body).length === 0) {
+      return c.json({ error: 'Request body is required' }, 400)
+    }
     let syncWarning: string | undefined
 
     // Handle normalized config storage
