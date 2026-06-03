@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Card, Typography, Spin, Button } from 'antd'
 import { ArrowLeftOutlined, FileTextOutlined } from '@ant-design/icons'
-import { api } from '../services/api'
+import { api, ApiError } from '../services/api'
 import AnalysisResult from '../components/AnalysisResult'
 import type { AnalysisResult as AnalysisResultType } from '../types/analysis'
 
@@ -102,11 +102,19 @@ export default function DocumentDetail() {
   const navigate = useNavigate()
   const [doc, setDoc] = useState<DocumentRow | null>(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (id) {
       api.get<DocumentRow>(`/api/documents/${id}`)
         .then(setDoc)
+        .catch((err) => {
+          if (err instanceof ApiError && err.status === 404) {
+            setError('not_found')
+          } else {
+            setError(err instanceof ApiError ? err.userMessage : '加载失败，请稍后重试。')
+          }
+        })
         .finally(() => setLoading(false))
     }
   }, [id])
@@ -122,7 +130,9 @@ export default function DocumentDetail() {
   if (!doc) {
     return (
       <div className="wonder-page">
-        <Typography.Text style={{ color: 'var(--ink-faint)' }}>文档不存在</Typography.Text>
+        <Typography.Text style={{ color: 'var(--ink-faint)' }}>
+          {error === 'not_found' ? '文档不存在' : error || '加载失败，请稍后重试。'}
+        </Typography.Text>
       </div>
     )
   }
