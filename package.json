@@ -11,7 +11,12 @@
     "build:electron": "tsc -p tsconfig.electron.json && npm run build:server && vite build && electron-rebuild -f -w better-sqlite3 && electron-builder --win dir",
     "build:installer": "tsc -p tsconfig.electron.json && npm run build:server && vite build && electron-rebuild -f -w better-sqlite3 && electron-builder --win nsis",
     "rebuild:electron": "electron-rebuild -f -w better-sqlite3",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:unit": "vitest run",
+    "test:server": "vitest run tests/server",
+    "test:python": "python -m pytest backend/tests -q",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.server.json --noEmit && tsc -p tsconfig.electron.json --noEmit",
+    "verify": "npm run typecheck && npm run test:unit && npm run test:python"
   },
   "keywords": [],
   "author": "Bruce Zhao",
