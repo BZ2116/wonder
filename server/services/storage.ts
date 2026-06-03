@@ -329,6 +329,16 @@ export class StorageService {
     this.db.prepare('DELETE FROM knowledge_bases WHERE id = ?').run(id)
   }
 
+  deleteKnowledgeBaseCascade(id: string) {
+    const tx = this.db.transaction((knowledgeBaseId: string) => {
+      this.db.prepare('DELETE FROM readme_suggestions WHERE knowledge_base_id = ?').run(knowledgeBaseId)
+      this.db.prepare('DELETE FROM discovery_candidates WHERE knowledge_base_id = ?').run(knowledgeBaseId)
+      this.db.prepare('DELETE FROM document_knowledge_bases WHERE knowledge_base_id = ?').run(knowledgeBaseId)
+      this.db.prepare('DELETE FROM knowledge_bases WHERE id = ?').run(knowledgeBaseId)
+    })
+    tx(id)
+  }
+
   // ── Document-KB methods ─────────────────────────────────────────────
 
   addDocumentToKB(assoc: { documentId: string; knowledgeBaseId: string; subDirection?: string; tags?: string; fitScore?: number; recommendedAction?: string }) {

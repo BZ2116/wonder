@@ -75,7 +75,9 @@ export function knowledgeBaseRoutes(storage: StorageService, python: PythonBacke
   // Delete knowledge base
   app.delete('/:id', (c) => {
     const id = c.req.param('id')
-    storage.deleteKnowledgeBase(id)
+    const kb = storage.getKnowledgeBase(id)
+    if (!kb) return c.json({ error: '知识库不存在' }, 404)
+    storage.deleteKnowledgeBaseCascade(id)
     return c.json({ success: true })
   })
 

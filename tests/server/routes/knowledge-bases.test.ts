@@ -25,6 +25,7 @@ function createApp() {
     createKnowledgeBase: vi.fn(),
     updateKnowledgeBase: vi.fn(),
     deleteKnowledgeBase: vi.fn(),
+    deleteKnowledgeBaseCascade: vi.fn(),
     getDocumentsByKB: vi.fn(() => []),
     addDocumentToKB: vi.fn(),
     removeDocumentFromKB: vi.fn(),
@@ -119,5 +120,28 @@ describe('knowledgeBaseRoutes - reindex', () => {
     const res = await app.request('/api/knowledge-bases/kb-1/documents/nonexistent/reindex', { method: 'POST' })
 
     expect(res.status).toBe(404)
+  })
+})
+
+describe('knowledgeBaseRoutes - cascade delete', () => {
+  it('deletes an existing knowledge base via cascade cleanup', async () => {
+    const { app, storage } = createApp()
+
+    const res = await app.request('/api/knowledge-bases/kb-1', { method: 'DELETE' })
+    const body = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(body.success).toBe(true)
+    expect(storage.deleteKnowledgeBaseCascade).toHaveBeenCalledWith('kb-1')
+  })
+
+  it('returns 404 when deleting a missing knowledge base', async () => {
+    const { app, storage } = createApp()
+    storage.getKnowledgeBase.mockReturnValueOnce(undefined)
+
+    const res = await app.request('/api/knowledge-bases/missing', { method: 'DELETE' })
+
+    expect(res.status).toBe(404)
+    expect(storage.deleteKnowledgeBaseCascade).not.toHaveBeenCalled()
   })
 })
