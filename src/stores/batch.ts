@@ -247,6 +247,6 @@ export const useBatchStore = create<BatchState>((set, get) => ({
   reset: () => {
     abortControllers.clear()
     pendingFiles.clear()
-    set({ runId: null, runName: '', items: [], running: false })
+    set({ runId: null, runName: '', items: [], running: false, runsError: null })
   },
 }))
