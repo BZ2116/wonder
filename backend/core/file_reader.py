@@ -4,9 +4,17 @@ from pypdf import PdfReader
 from docx import Document
 
 
+SUPPORTED_EXTENSIONS = {".pdf", ".docx", ".txt", ".md", ".csv", ".json", ".log"}
+
+
 def read_pdf(file_bytes: bytes) -> str:
     text_parts = []
-    reader = PdfReader(BytesIO(file_bytes))
+    try:
+        reader = PdfReader(BytesIO(file_bytes))
+    except Exception as exc:
+        raise Exception(f"Failed to read PDF: {exc}") from exc
+    if getattr(reader, "is_encrypted", False):
+        raise Exception("Cannot read encrypted PDF")
     for page_idx, page in enumerate(reader.pages):
         try:
             text = page.extract_text() or ""
@@ -20,7 +28,10 @@ def read_pdf(file_bytes: bytes) -> str:
 
 
 def read_docx(file_bytes: bytes) -> str:
-    doc = Document(BytesIO(file_bytes))
+    try:
+        doc = Document(BytesIO(file_bytes))
+    except Exception as exc:
+        raise Exception(f"Failed to read DOCX: {exc}") from exc
     paragraphs = [p.text.strip() for p in doc.paragraphs if p.text.strip()]
     return "\n".join(paragraphs)
 
@@ -36,6 +47,9 @@ def read_text(file_bytes: bytes) -> str:
 
 def read_file(filename: str, file_bytes: bytes) -> str:
     name_lower = filename.lower()
+    ext = "." + name_lower.rsplit(".", 1)[-1] if "." in name_lower else ""
+    if ext and ext not in SUPPORTED_EXTENSIONS:
+        raise ValueError(f"Unsupported file extension: {ext}")
     if name_lower.endswith(".pdf"):
         return read_pdf(file_bytes)
     if name_lower.endswith(".docx"):

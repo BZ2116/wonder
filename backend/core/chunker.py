@@ -2,6 +2,10 @@ from typing import List
 
 
 def chunk_text(text: str, max_chars: int = 7000, overlap: int = 500) -> List[str]:
+    if overlap >= max_chars:
+        raise ValueError("overlap must be smaller than max_chars")
+    if not text or not text.strip():
+        return []
     if len(text) <= max_chars:
         return [text]
 
