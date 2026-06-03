@@ -40,9 +40,16 @@ export const useAnalysisStore = create<AnalysisState>((set, get) => ({
   checkApi: async () => {
     set({ apiStatus: 'checking', apiError: null })
     try {
-      const ok = await api.healthCheck()
-      set({ apiStatus: ok ? 'ok' : 'error', apiError: ok ? null : 'LLM API 不可达，请检查配置' })
-      return ok
+      const status = await api.healthCheck()
+      if (!status.ok) {
+        const parts: string[] = []
+        if (!status.llm) parts.push('LLM API 不可达')
+        if (!status.python) parts.push('Python AI Core 未运行')
+        set({ apiStatus: 'error', apiError: parts.join('；') || '未知错误' })
+        return false
+      }
+      set({ apiStatus: 'ok', apiError: null })
+      return true
     } catch {
       set({ apiStatus: 'error', apiError: '无法连接到服务器' })
       return false

@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { InboxOutlined, FileTextOutlined, CloseCircleOutlined, LoadingOutlined } from '@ant-design/icons'
+import { useState, useRef } from 'react'
+import { InboxOutlined, FileTextOutlined, CloseCircleOutlined, LoadingOutlined, ReloadOutlined } from '@ant-design/icons'
 import { message } from 'antd'
 import { api } from '../services/api'
 
@@ -12,18 +12,21 @@ export default function FileUpload({ onFileContent, disabled }: Props) {
   const [dragging, setDragging] = useState(false)
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
   const [parsing, setParsing] = useState(false)
+  const parsedContentRef = useRef<{ text: string; fileType: string } | null>(null)
 
   const processFile = async (file: File) => {
     if (disabled) return
     const ext = file.name.split('.').pop()?.toLowerCase()
     if (ext === 'txt' || ext === 'md') {
       const text = await file.text()
+      parsedContentRef.current = { text, fileType: ext }
       setSelectedFile(file.name)
       onFileContent(file.name, ext, text)
     } else if (ext === 'pdf' || ext === 'docx') {
       setParsing(true)
       try {
         const { text, fileName } = await api.parseFile(file)
+        parsedContentRef.current = { text, fileType: ext }
         setSelectedFile(fileName)
         onFileContent(fileName, ext, text)
       } catch (err) {
@@ -34,6 +37,16 @@ export default function FileUpload({ onFileContent, disabled }: Props) {
     } else {
       message.error('不支持的文件格式')
     }
+  }
+
+  const handleRetry = () => {
+    if (disabled || !selectedFile || !parsedContentRef.current) return
+    onFileContent(selectedFile, parsedContentRef.current.fileType, parsedContentRef.current.text)
+  }
+
+  const handleClear = () => {
+    setSelectedFile(null)
+    parsedContentRef.current = null
   }
 
   const handleDrop = (e: React.DragEvent) => {
@@ -91,11 +104,16 @@ export default function FileUpload({ onFileContent, disabled }: Props) {
           {selectedFile}
         </span>
         {!disabled && (
-          <CloseCircleOutlined
-            style={{ color: 'var(--ink-faint)', cursor: 'pointer', fontSize: 16 }}
-            onClick={() => setSelectedFile(null)}
+          <ReloadOutlined
+            style={{ color: 'var(--accent)', cursor: 'pointer', fontSize: 16 }}
+            onClick={handleRetry}
+            title="重新分析"
           />
         )}
+        <CloseCircleOutlined
+          style={{ color: 'var(--ink-faint)', cursor: 'pointer', fontSize: 16 }}
+          onClick={handleClear}
+        />
       </div>
     )
   }

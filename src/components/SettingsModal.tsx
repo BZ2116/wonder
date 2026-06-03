@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Input, Button, message, Avatar, Tag, Select, Typography } from 'antd'
+import { Input, Button, message, Avatar, Tag, Select, AutoComplete, Typography } from 'antd'
 import {
   ApiOutlined,
   KeyOutlined,
@@ -461,9 +461,9 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
                   }}
                 />
               ) : (
-                <Select
+                <AutoComplete
                   style={{ width: '100%' }}
-                  placeholder="选择模型"
+                  placeholder="选择或输入模型名称"
                   value={model || undefined}
                   onChange={value => {
                     if (target === 'analysis') {
@@ -473,7 +473,7 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
                     }
                   }}
                   options={models.map(m => ({ label: m, value: m }))}
-                  showSearch
+                  allowClear
                 />
               )}
             </div>

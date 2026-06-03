@@ -31,15 +31,14 @@ export const api = {
     return res.json()
   },
 
-  healthCheck: async (): Promise<boolean> => {
-    try {
-      const res = await fetch(`${BASE}/api/health/llm`, {
-        signal: AbortSignal.timeout(5000),
-      })
-      return res.ok
-    } catch {
-      return false
-    }
+  healthCheck: async (): Promise<{ ok: boolean; llm: boolean; python: boolean }> => {
+    const [llmRes, pythonRes] = await Promise.allSettled([
+      fetch(`${BASE}/api/health/llm`, { signal: AbortSignal.timeout(5000) }),
+      fetch(`${BASE}/api/health/ai-core`, { signal: AbortSignal.timeout(5000) }),
+    ])
+    const llm = llmRes.status === 'fulfilled' && llmRes.value.ok
+    const python = pythonRes.status === 'fulfilled' && pythonRes.value.ok
+    return { ok: llm && python, llm, python }
   },
 
   stream: async (

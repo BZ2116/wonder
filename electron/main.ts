@@ -3,6 +3,12 @@ import path from 'path'
 import net from 'net'
 import fs from 'fs'
 
+const gotTheLock = app.requestSingleInstanceLock()
+
+if (!gotTheLock) {
+  app.quit()
+}
+
 let mainWindow: BrowserWindow | null = null
 
 const MIN_WINDOW_WIDTH = 900
@@ -107,6 +113,13 @@ async function createWindow() {
     mainWindow?.webContents.send('window:maximize-change', false)
   })
 }
+
+app.on('second-instance', () => {
+  if (mainWindow) {
+    if (mainWindow.isMinimized()) mainWindow.restore()
+    mainWindow.focus()
+  }
+})
 
 app.on('ready', createWindow)
 app.on('window-all-closed', () => {
