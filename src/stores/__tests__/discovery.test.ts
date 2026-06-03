@@ -63,8 +63,11 @@ describe('useDiscoveryStore', () => {
       discoveryContext: null,
       searchResults: [],
       searchLoading: false,
+      hasSearched: false,
+      searchError: null,
       candidateQueue: [],
       candidatesLoading: false,
+      candidatesError: null,
     })
   })
 
@@ -158,5 +161,25 @@ describe('useDiscoveryStore', () => {
 
     expect(mockApi.get).toHaveBeenCalledWith('/api/discovery/search?q=RAG&limit=20')
     expect(useDiscoveryStore.getState().searchResults).toHaveLength(1)
+  })
+
+  it('sets searchError when searchPapers fails', async () => {
+    mockApi.get.mockRejectedValueOnce(new Error('rate limited'))
+
+    await useDiscoveryStore.getState().searchPapers('test')
+
+    expect(useDiscoveryStore.getState().searchLoading).toBe(false)
+    expect(useDiscoveryStore.getState().hasSearched).toBe(true)
+    expect(useDiscoveryStore.getState().searchError).toBe('rate limited')
+    expect(useDiscoveryStore.getState().searchResults).toEqual([])
+  })
+
+  it('sets candidatesError when loadCandidates fails', async () => {
+    mockApi.get.mockRejectedValueOnce(new Error('unauthorized'))
+
+    await useDiscoveryStore.getState().loadCandidates()
+
+    expect(useDiscoveryStore.getState().candidatesLoading).toBe(false)
+    expect(useDiscoveryStore.getState().candidatesError).toBe('unauthorized')
   })
 })

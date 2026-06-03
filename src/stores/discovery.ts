@@ -13,11 +13,13 @@ interface DiscoveryState {
   searchResults: S2Paper[]
   searchLoading: boolean
   hasSearched: boolean
+  searchError: string | null
   searchPapers: (query: string, limit?: number) => Promise<void>
 
   // Candidates (API-backed)
   candidateQueue: DiscoveryCandidate[]
   candidatesLoading: boolean
+  candidatesError: string | null
   loadCandidates: (knowledgeBaseId?: string) => Promise<void>
   saveCandidate: (candidate: Omit<DiscoveryCandidate, 'id'>) => Promise<void>
   updateCandidateState: (id: string, state: DiscoveryCandidate['state']) => Promise<void>
@@ -76,28 +78,30 @@ export const useDiscoveryStore = create<DiscoveryState>((set, get) => ({
   searchResults: [],
   searchLoading: false,
   hasSearched: false,
+  searchError: null,
   searchPapers: async (query, limit = 20) => {
-    set({ searchLoading: true })
+    set({ searchLoading: true, searchError: null })
     try {
       const result = await api.get<S2SearchResult>(`/api/discovery/search?q=${encodeURIComponent(query)}&limit=${limit}`)
       set({ searchResults: result.papers, searchLoading: false, hasSearched: true })
-    } catch {
-      set({ searchLoading: false, hasSearched: true })
+    } catch (err) {
+      set({ searchResults: [], searchLoading: false, hasSearched: true, searchError: err instanceof Error ? err.message : String(err) })
     }
   },
 
   // Candidates
   candidateQueue: [],
   candidatesLoading: false,
+  candidatesError: null,
 
   loadCandidates: async (knowledgeBaseId) => {
-    set({ candidatesLoading: true })
+    set({ candidatesLoading: true, candidatesError: null })
     try {
       const params = knowledgeBaseId ? `?knowledgeBaseId=${knowledgeBaseId}` : ''
       const rows = await api.get<ServerCandidate[]>(`/api/discovery/candidates${params}`)
       set({ candidateQueue: rows.map(fromServer), candidatesLoading: false })
-    } catch {
-      set({ candidatesLoading: false })
+    } catch (err) {
+      set({ candidatesLoading: false, candidatesError: err instanceof Error ? err.message : String(err) })
     }
   },
 
