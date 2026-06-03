@@ -1,4 +1,4 @@
-import { Button, Typography } from 'antd'
+import { Button, Spin, Typography } from 'antd'
 import { ApiOutlined, ExperimentOutlined, SettingOutlined } from '@ant-design/icons'
 import { useConfigStore } from '../stores/config'
 import { useUIStore } from '../stores/ui'
@@ -12,7 +12,13 @@ export default function ApiGuard({ require, children }: ApiGuardProps) {
   const { config, loaded } = useConfigStore()
   const { openSettings } = useUIStore()
 
-  if (!loaded) return null
+  if (!loaded) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
+        <Spin size="large" />
+      </div>
+    )
+  }
 
   const isConfigured = (() => {
     if (!config) return false
