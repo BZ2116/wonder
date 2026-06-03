@@ -242,6 +242,31 @@ def test_deletion_removes_vector_entries(real_chroma_storage):
     assert "doc-del" not in after.source_doc_ids
 
 
+class FailingStorage(FakeStorage):
+    def add_to_collection(self, ids, embeddings, metadatas, documents):
+        raise RuntimeError("chroma write failed")
+
+
+def test_index_document_wraps_storage_failure_with_doc_context():
+    indexer = DocumentIndexer(FailingStorage(), FakeEmbedding())
+
+    with pytest.raises(RuntimeError) as exc:
+        indexer.index_document(
+            doc_id="doc-fail",
+            knowledge_base_id="kb-fail",
+            file_name="fail.txt",
+            file_path="/tmp/fail.txt",
+            chunks=["chunk"],
+            summary="summary",
+            analysis_result={},
+        )
+
+    message = str(exc.value)
+    assert "doc-fail" in message
+    assert "kb-fail" in message
+    assert "chroma write failed" in message
+
+
 def test_empty_query_returns_validation_error():
     """Empty query string must raise a clear error, not silently fail."""
     storage = FakeQueryStorage()
@@ -249,3 +274,29 @@ def test_empty_query_returns_validation_error():
 
     with pytest.raises(ValueError, match="query"):
         retriever.retrieve("")
+
+
+def test_delete_document_requires_knowledge_base_id():
+    storage = FakeStorage()
+    indexer = DocumentIndexer(storage, FakeEmbedding())
+
+    with pytest.raises(ValueError, match="knowledge_base_id"):
+        indexer.delete_document("doc-1")
+
+    assert storage.deleted is None
+
+
+def test_delete_document_only_removes_target_kb_vectors(real_chroma_storage):
+    storage = real_chroma_storage
+    _index_doc(storage, "doc-shared", "kb-a", ["alpha content"], summary="alpha summary")
+    _index_doc(storage, "doc-shared", "kb-b", ["beta content"], summary="beta summary")
+
+    indexer = DocumentIndexer(storage, SpyEmbedding(vector=[1.0, 0.0, 0.0]))
+    indexer.delete_document("doc-shared", knowledge_base_id="kb-a")
+
+    retriever = RAGRetriever(storage, SpyEmbedding(vector=[1.0, 0.0, 0.0]))
+    after_a = retriever.retrieve("alpha", knowledge_base_id="kb-a")
+    after_b = retriever.retrieve("beta", knowledge_base_id="kb-b")
+
+    assert "doc-shared" not in after_a.source_doc_ids
+    assert "doc-shared" in after_b.source_doc_ids

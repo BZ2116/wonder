@@ -51,12 +51,18 @@ class DocumentIndexer:
             })
             documents.append(chunk)
 
-        self.storage.add_to_collection(
-            ids=ids,
-            embeddings=embeddings,
-            metadatas=metadatas,
-            documents=documents,
-        )
+        try:
+            self.storage.add_to_collection(
+                ids=ids,
+                embeddings=embeddings,
+                metadatas=metadatas,
+                documents=documents,
+            )
+        except Exception as exc:
+            raise RuntimeError(
+                f"Failed to persist vector index for doc_id={doc_id} "
+                f"knowledge_base_id={knowledge_base_id}: {exc}"
+            ) from exc
 
         return doc_id
 
