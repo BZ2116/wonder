@@ -2,6 +2,7 @@
 import pytest
 from unittest.mock import patch, MagicMock
 from fastapi.testclient import TestClient
+from backend.agents.qa import QAAgent
 
 
 # ── Gateway analysis with mocked provider ────────────────────────────────────
@@ -201,3 +202,36 @@ class TestBaseAgentProvider:
             provider = agent._get_provider()
             assert provider is not None
             mock_factory.assert_called_once()
+
+
+# ── QA conversation history robustness ───────────────────────────────────────
+
+
+class TestQAConversationHistory:
+    def test_history_with_missing_role_does_not_crash(self):
+        mock_provider = MagicMock()
+        mock_provider.chat.return_value = "answer"
+        agent = QAAgent(model="test", provider=mock_provider)
+
+        history = [{"content": "hello"}, {"role": "user", "content": "hi"}]
+        # Should not raise KeyError
+        agent.run(
+            document_context="doc",
+            analysis_report="report",
+            question="q",
+            conversation_history=history,
+        )
+
+    def test_history_with_missing_content_does_not_crash(self):
+        mock_provider = MagicMock()
+        mock_provider.chat.return_value = "answer"
+        agent = QAAgent(model="test", provider=mock_provider)
+
+        history = [{"role": "user"}, {"role": "assistant", "content": "hi"}]
+        # Should not raise KeyError
+        agent.run(
+            document_context="doc",
+            analysis_report="report",
+            question="q",
+            conversation_history=history,
+        )

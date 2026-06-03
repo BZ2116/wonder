@@ -94,3 +94,9 @@ def test_health_alias_available():
 
     assert res.status_code == 200
     assert res.json()["status"] == "ok"
+
+
+def test_readme_advisor_rejects_invalid_body():
+    client = TestClient(app)
+    res = client.post("/api/readme-advisor/generate", json={"invalid_field": 123})
+    assert res.status_code == 422

@@ -1,4 +1,7 @@
+import os
+
 from fastapi import APIRouter
+from pydantic import BaseModel
 from typing import Optional
 
 from backend.core.config import ConfigManager
@@ -8,7 +11,16 @@ from backend.models.schemas import ChatConfig
 
 router = APIRouter(prefix="/api/readme-advisor", tags=["readme-advisor"])
 
-config_manager = ConfigManager("data/config.json")
+_config_path = os.environ.get("NOTE_FORGE_CONFIG_PATH", "data/config.json")
+config_manager = ConfigManager(_config_path)
+
+
+class ReadmeAdvisorRequest(BaseModel):
+    model_config = {"extra": "forbid"}
+    readme: str = ""
+    document_summary: str = ""
+    reading_card: str = ""
+    chat_config: Optional[ChatConfig] = None
 
 
 def _build_provider(chat_config: Optional[ChatConfig] = None):
@@ -30,27 +42,21 @@ def _build_provider(chat_config: Optional[ChatConfig] = None):
 
 
 @router.post("/generate")
-async def generate_suggestions(body: dict):
-    readme = body.get("readme", "")
-    document_summary = body.get("document_summary", "")
-    reading_card = body.get("reading_card", "")
-    chat_config_data = body.get("chat_config")
-
-    if not readme or not document_summary:
+async def generate_suggestions(body: ReadmeAdvisorRequest):
+    if not body.readme or not body.document_summary:
         return {"suggestions": []}
 
-    chat_config = ChatConfig(**chat_config_data) if chat_config_data else None
     config = config_manager.load_normalized()
     chat = config.get("chat", {})
     model_name = chat.get("model", "claude-sonnet-4-20250514")
-    provider = _build_provider(chat_config)
+    provider = _build_provider(body.chat_config)
 
     agent = ReadmeAdvisorAgent(model_name, provider=provider)
     try:
         suggestions = agent.run(
-            readme=readme,
-            document_summary=document_summary,
-            reading_card=reading_card,
+            readme=body.readme,
+            document_summary=body.document_summary,
+            reading_card=body.reading_card,
         )
         return {"suggestions": suggestions}
     except Exception:

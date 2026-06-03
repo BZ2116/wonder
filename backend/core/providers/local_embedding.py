@@ -1,18 +1,20 @@
 from __future__ import annotations
 
 import threading
+from collections import OrderedDict
 from typing import Any
 
 from .base import ProviderError, format_provider_error
 
+_MAX_CACHE_SIZE = 2
 
 # Lazy import to avoid loading torch at module level
-_model_cache: dict[str, Any] = {}
+_model_cache: OrderedDict[str, Any] = OrderedDict()
 _lock = threading.Lock()
 
 
 def _get_model(model_name: str):
-    """Lazy-load and cache the sentence-transformers model."""
+    """Lazy-load and cache the sentence-transformers model (LRU, max 2)."""
     if model_name not in _model_cache:
         with _lock:
             # Double-check after acquiring lock
@@ -25,11 +27,19 @@ def _get_model(model_name: str):
                         "Run: pip install sentence-transformers"
                     )
                 try:
-                    _model_cache[model_name] = SentenceTransformer(model_name)
+                    model = SentenceTransformer(model_name)
                 except Exception as e:
                     raise ProviderError(
                         f"Failed to load local model '{model_name}': {format_provider_error(e)}"
                     ) from e
+                _model_cache[model_name] = model
+                # Evict oldest entry if cache exceeds max size
+                while len(_model_cache) > _MAX_CACHE_SIZE:
+                    _model_cache.popitem(last=False)
+    else:
+        # Move accessed entry to end (most recently used)
+        with _lock:
+            _model_cache.move_to_end(model_name)
     return _model_cache[model_name]
 
 

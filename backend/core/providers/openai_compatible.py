@@ -71,6 +71,8 @@ class OpenAICompatibleProvider:
             raise ProviderError(f"OpenAI-compatible stream failed: {format_provider_error(e)}") from e
 
         for chunk in stream:
+            if not chunk.choices:
+                continue
             delta = chunk.choices[0].delta
             if delta.content:
                 yield delta.content

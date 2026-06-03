@@ -117,6 +117,35 @@ class TestOpenAICompatibleChat:
         call_kwargs = mock_client.chat.completions.create.call_args.kwargs
         assert call_kwargs["stream"] is True
 
+    def test_stream_chat_skips_empty_choices(self):
+        from backend.core.providers.openai_compatible import OpenAICompatibleProvider
+
+        chunk_ok = MagicMock()
+        chunk_ok.choices = [MagicMock()]
+        chunk_ok.choices[0].delta.content = "Hello"
+        chunk_empty = MagicMock()
+        chunk_empty.choices = []
+        chunk_ok2 = MagicMock()
+        chunk_ok2.choices = [MagicMock()]
+        chunk_ok2.choices[0].delta.content = " world"
+
+        mock_client = MagicMock()
+        mock_client.chat.completions.create.return_value = iter([chunk_ok, chunk_empty, chunk_ok2])
+
+        provider = OpenAICompatibleProvider(
+            api_key="sk-test",
+            base_url="https://api.openai.com/v1",
+            client=mock_client,
+        )
+        chunks = list(provider.stream_chat(
+            messages=[{"role": "user", "content": "Hi"}],
+            model="gpt-4o",
+            temperature=0.2,
+            max_tokens=100,
+        ))
+
+        assert chunks == ["Hello", " world"]
+
     def test_health_check_returns_true_on_success(self):
         from backend.core.providers.openai_compatible import OpenAICompatibleProvider
 

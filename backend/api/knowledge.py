@@ -1,3 +1,4 @@
+import os
 import threading
 from fastapi import APIRouter, HTTPException
 from typing import Optional
@@ -22,7 +23,8 @@ from backend.models.schemas import (
 
 router = APIRouter(prefix="/api/knowledge", tags=["knowledge"])
 
-config_manager = ConfigManager("data/config.json")
+_config_path = os.environ.get("NOTE_FORGE_CONFIG_PATH", "data/config.json")
+config_manager = ConfigManager(_config_path)
 
 
 # Module-level singletons (created once)

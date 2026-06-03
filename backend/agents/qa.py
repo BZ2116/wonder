@@ -30,7 +30,9 @@ Requirements:
         history_text = ""
         if conversation_history:
             for msg in conversation_history[-6:]:  # Last 3 rounds
-                history_text += f"\n{msg['role']}: {msg['content']}"
+                role = msg.get("role", "")
+                content = msg.get("content", "")
+                history_text += f"\n{role}: {content}"
 
         user_prompt = f"""
 Document excerpt:
