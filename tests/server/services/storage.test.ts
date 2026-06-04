@@ -77,9 +77,11 @@ describe('StorageService', () => {
     const doc = migratedStorage.getDocument('doc-old')
     expect(doc).toBeDefined()
     expect(doc!.lifecycle_status).toBe('analyzed')
-    expect(doc!.index_status).toBe('not_indexed')
-    expect(doc!.index_error).toBeNull()
-    expect(doc!.indexed_at).toBeNull()
+
+    // Index status now lives in document_vector_indexes (migration split)
+    expect(
+      migratedDb.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='document_vector_indexes'").get()
+    ).toBeTruthy()
 
     migratedDb.close()
     fs.unlinkSync(TEST_DB + '.old')
@@ -92,21 +94,23 @@ describe('StorageService', () => {
     expect(doc!.lifecycle_status).toBe('indexing')
   })
 
-  it('should update document index status', () => {
+  it('should update document index status via vector ledger', () => {
     storage.upsertDocument({ id: 'doc1', fileName: 'test.pdf', fileType: 'pdf' })
     storage.updateDocumentIndexStatus('doc1', 'indexed')
-    const doc = storage.getDocument('doc1')
-    expect(doc!.index_status).toBe('indexed')
-    expect(doc!.indexed_at).not.toBeNull()
+    const row = db.prepare('SELECT * FROM document_vector_indexes WHERE document_id = ?').get('doc1') as any
+    expect(row).toBeDefined()
+    expect(row.status).toBe('indexed')
+    expect(row.indexed_at).not.toBeNull()
   })
 
   it('should record index error on failure', () => {
     storage.upsertDocument({ id: 'doc1', fileName: 'test.pdf', fileType: 'pdf' })
     storage.updateDocumentIndexStatus('doc1', 'index_failed', 'embedding timeout')
-    const doc = storage.getDocument('doc1')
-    expect(doc!.index_status).toBe('index_failed')
-    expect(doc!.index_error).toBe('embedding timeout')
-    expect(doc!.indexed_at).toBeNull()
+    const row = db.prepare('SELECT * FROM document_vector_indexes WHERE document_id = ?').get('doc1') as any
+    expect(row).toBeDefined()
+    expect(row.status).toBe('index_failed')
+    expect(row.error).toBe('embedding timeout')
+    expect(row.indexed_at).toBeNull()
   })
 
   // ── Discovery candidate tests ──────────────────────────────────────
@@ -123,8 +127,12 @@ describe('StorageService', () => {
     const candidate = storage.getDiscoveryCandidate('c1')
     expect(candidate).toBeDefined()
     expect(candidate!.paper_id).toBe('s2-123')
-    expect(candidate!.title).toBe('Test Paper')
     expect(candidate!.state).toBe('saved')
+
+    // Paper metadata now lives in paper_nodes
+    const paper = storage.getPaperNode('s2-123')
+    expect(paper).toBeDefined()
+    expect(paper!.title).toBe('Test Paper')
   })
 
   it('should list candidates filtered by knowledge base', () => {
@@ -162,8 +170,11 @@ describe('StorageService', () => {
     storage.upsertDiscoveryCandidate({ id: 'c1b', paperId: 'p1', title: 'Updated', state: 'ignored' })
     const candidates = storage.listDiscoveryCandidates()
     expect(candidates).toHaveLength(1)
-    expect(candidates[0].title).toBe('Updated')
     expect(candidates[0].state).toBe('ignored')
+
+    // Paper metadata updated in paper_nodes
+    const paper = storage.getPaperNode('p1')
+    expect(paper!.title).toBe('Updated')
   })
 
   // ── Batch tests ─────────────────────────────────────────────────────
@@ -370,5 +381,234 @@ describe('StorageService', () => {
     storage.addQAMessage({ id: 'm1', session_id: 's1', role: 'user', content: 'hello' })
     const msg = storage.getQAMessagesBySessionId('s1')[0]
     expect(msg.sources).toBeNull()
+  })
+
+  // ── Migration tests ─────────────────────────────────────────────────
+
+  describe('schema migrations', () => {
+    const MIGRATION_DB = path.join(__dirname, 'migration-test.db')
+    let migratedDb: Database.Database | null = null
+
+    function cleanupMigrationDb() {
+      if (migratedDb) {
+        try { migratedDb.close() } catch { /* ignore */ }
+        migratedDb = null
+      }
+      if (fs.existsSync(MIGRATION_DB)) {
+        try { fs.unlinkSync(MIGRATION_DB) } catch { /* ignore */ }
+      }
+      const walPath = MIGRATION_DB + '-wal'
+      const shmPath = MIGRATION_DB + '-shm'
+      if (fs.existsSync(walPath)) { try { fs.unlinkSync(walPath) } catch { /* ignore */ } }
+      if (fs.existsSync(shmPath)) { try { fs.unlinkSync(shmPath) } catch { /* ignore */ } }
+    }
+
+    function createOldSchema(extraSetup?: (db: Database.Database) => void) {
+      cleanupMigrationDb()
+      const oldDb = new Database(MIGRATION_DB)
+      oldDb.exec(`
+        CREATE TABLE documents (
+          id TEXT PRIMARY KEY, file_name TEXT NOT NULL, file_path TEXT, file_type TEXT,
+          created_at TEXT DEFAULT CURRENT_TIMESTAMP, summary TEXT, reading_card TEXT,
+          relation_analysis TEXT, writing_materials TEXT, todo_list TEXT, tags TEXT,
+          match_score REAL, lifecycle_status TEXT DEFAULT 'analyzed',
+          index_status TEXT DEFAULT 'not_indexed', index_error TEXT, indexed_at TEXT
+        )
+      `)
+      extraSetup?.(oldDb)
+      oldDb.close()
+    }
+
+    beforeEach(() => {
+      cleanupMigrationDb()
+    })
+
+    afterEach(() => {
+      cleanupMigrationDb()
+    })
+
+    it('should create document_analysis, document_vector_indexes, and schema_migrations tables via migration', () => {
+      createOldSchema((db) => {
+        db.exec(`INSERT INTO documents (id, file_name) VALUES ('doc1', 'test.pdf')`)
+      })
+
+      migratedDb = new Database(MIGRATION_DB)
+      new StorageService(migratedDb)
+
+      expect(
+        migratedDb.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='document_analysis'").get()
+      ).toBeTruthy()
+      expect(
+        migratedDb.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='document_vector_indexes'").get()
+      ).toBeTruthy()
+      expect(
+        migratedDb.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='schema_migrations'").get()
+      ).toBeTruthy()
+
+      const migrations = migratedDb.prepare('SELECT * FROM schema_migrations ORDER BY version').all() as any[]
+      expect(migrations.length).toBeGreaterThanOrEqual(3)
+      expect(migrations[0].name).toBe('split_document_analysis')
+      expect(migrations[1].name).toBe('create_document_vector_indexes')
+      expect(migrations[2].name).toBe('unify_paper_metadata')
+    })
+
+    it('should migrate old document analysis fields to document_analysis table', () => {
+      createOldSchema((db) => {
+        db.exec(`
+          INSERT INTO documents (id, file_name, summary, reading_card, relation_analysis, writing_materials, todo_list, tags, index_status)
+          VALUES ('doc-old', 'old.pdf', 'old summary', 'old card', 'old relation', 'old writing', 'old todo', 'tag1,tag2', 'indexed')
+        `)
+        db.exec(`INSERT INTO documents (id, file_name) VALUES ('doc-empty', 'empty.pdf')`)
+      })
+
+      migratedDb = new Database(MIGRATION_DB)
+      new StorageService(migratedDb)
+
+      const analysis = migratedDb.prepare('SELECT * FROM document_analysis WHERE document_id = ?').get('doc-old') as any
+      expect(analysis).toBeTruthy()
+      expect(analysis.summary).toBe('old summary')
+      expect(analysis.reading_card).toBe('old card')
+      expect(analysis.relation_analysis).toBe('old relation')
+      expect(analysis.writing_materials).toBe('old writing')
+      expect(analysis.todo_list).toBe('old todo')
+      expect(analysis.tags).toBe('tag1,tag2')
+
+      const emptyAnalysis = migratedDb.prepare('SELECT * FROM document_analysis WHERE document_id = ?').get('doc-empty') as any
+      expect(emptyAnalysis).toBeTruthy()
+
+      const docColumns = migratedDb.prepare('PRAGMA table_info(documents)').all() as { name: string }[]
+      const colNames = docColumns.map(c => c.name)
+      expect(colNames).not.toContain('summary')
+      expect(colNames).not.toContain('reading_card')
+      expect(colNames).not.toContain('index_status')
+      expect(colNames).not.toContain('index_error')
+      expect(colNames).not.toContain('indexed_at')
+
+      const doc = migratedDb.prepare('SELECT * FROM documents WHERE id = ?').get('doc-old') as any
+      expect(doc).toBeTruthy()
+      expect(doc.file_name).toBe('old.pdf')
+
+      const count = migratedDb.prepare('SELECT COUNT(*) as c FROM documents').get() as any
+      expect(count.c).toBe(2)
+    })
+
+    it('should create vector ledger rows for indexed documents', () => {
+      createOldSchema((db) => {
+        db.exec(`
+          CREATE TABLE knowledge_bases (
+            id TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT, readme TEXT NOT NULL DEFAULT '',
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP, updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+          )
+        `)
+        db.exec(`
+          CREATE TABLE document_knowledge_bases (
+            document_id TEXT NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+            knowledge_base_id TEXT NOT NULL REFERENCES knowledge_bases(id) ON DELETE CASCADE,
+            sub_direction TEXT, tags TEXT, fit_score REAL, recommended_action TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (document_id, knowledge_base_id)
+          )
+        `)
+        db.exec(`INSERT INTO knowledge_bases (id, name) VALUES ('kb-1', 'Test KB')`)
+        db.exec(`INSERT INTO documents (id, file_name, index_status) VALUES ('doc-indexed', 'indexed.pdf', 'indexed')`)
+        db.exec(`INSERT INTO documents (id, file_name, index_status, index_error) VALUES ('doc-failed', 'failed.pdf', 'index_failed', 'timeout')`)
+        db.exec(`INSERT INTO documents (id, file_name, index_status) VALUES ('doc-indexing', 'indexing.pdf', 'indexing')`)
+        db.exec(`INSERT INTO documents (id, file_name) VALUES ('doc-none', 'none.pdf')`)
+        db.exec(`INSERT INTO document_knowledge_bases (document_id, knowledge_base_id) VALUES ('doc-indexed', 'kb-1')`)
+        db.exec(`INSERT INTO document_knowledge_bases (document_id, knowledge_base_id) VALUES ('doc-failed', 'kb-1')`)
+        db.exec(`INSERT INTO document_knowledge_bases (document_id, knowledge_base_id) VALUES ('doc-indexing', 'kb-1')`)
+        db.exec(`INSERT INTO document_knowledge_bases (document_id, knowledge_base_id) VALUES ('doc-none', 'kb-1')`)
+      })
+
+      migratedDb = new Database(MIGRATION_DB)
+      new StorageService(migratedDb)
+
+      const rows = migratedDb.prepare('SELECT * FROM document_vector_indexes ORDER BY document_id').all() as any[]
+      expect(rows).toHaveLength(4)
+
+      const indexed = rows.find((r: any) => r.document_id === 'doc-indexed')
+      expect(indexed.status).toBe('indexed')
+      expect(indexed.knowledge_base_id).toBe('kb-1')
+
+      const failed = rows.find((r: any) => r.document_id === 'doc-failed')
+      expect(failed.status).toBe('failed')
+      expect(failed.error).toBe('timeout')
+
+      const indexing = rows.find((r: any) => r.document_id === 'doc-indexing')
+      expect(indexing.status).toBe('indexing')
+
+      const none = rows.find((r: any) => r.document_id === 'doc-none')
+      expect(none.status).toBe('not_indexed')
+    })
+
+    it('should add influential_citation_count to paper_nodes and rebuild discovery_candidates', () => {
+      createOldSchema((db) => {
+        db.exec(`
+          CREATE TABLE knowledge_bases (
+            id TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT, readme TEXT NOT NULL DEFAULT '',
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP, updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+          )
+        `)
+        db.exec(`
+          CREATE TABLE paper_nodes (
+            paper_id TEXT PRIMARY KEY, title TEXT NOT NULL, abstract TEXT, year INTEGER,
+            citation_count INTEGER DEFAULT 0, venue TEXT, authors TEXT, url TEXT,
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+          )
+        `)
+        db.exec(`
+          CREATE TABLE discovery_candidates (
+            id TEXT PRIMARY KEY, paper_id TEXT NOT NULL, title TEXT NOT NULL, abstract TEXT,
+            year INTEGER, citation_count INTEGER DEFAULT 0, influential_citation_count INTEGER DEFAULT 0,
+            venue TEXT, authors TEXT, url TEXT, source_query TEXT,
+            discovery_priority_score REAL DEFAULT 0, discovery_reason TEXT,
+            state TEXT NOT NULL DEFAULT 'saved',
+            knowledge_base_id TEXT REFERENCES knowledge_bases(id) ON DELETE SET NULL,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP, updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+          )
+        `)
+        db.exec(`INSERT INTO paper_nodes (paper_id, title) VALUES ('paper-existing', 'Existing Paper')`)
+        db.exec(`
+          INSERT INTO discovery_candidates (id, paper_id, title, abstract, year, citation_count, influential_citation_count, venue, authors, url, state)
+          VALUES ('dc1', 'paper-new', 'New Paper', 'Abstract', 2024, 50, 10, 'ICML', '["Author"]', 'http://example.com', 'saved')
+        `)
+        db.exec(`
+          INSERT INTO discovery_candidates (id, paper_id, title, state)
+          VALUES ('dc2', 'paper-existing', 'Existing Paper Ref', 'saved')
+        `)
+      })
+
+      migratedDb = new Database(MIGRATION_DB)
+      new StorageService(migratedDb)
+
+      const pnCols = migratedDb.prepare('PRAGMA table_info(paper_nodes)').all() as { name: string }[]
+      expect(pnCols.map(c => c.name)).toContain('influential_citation_count')
+
+      const newPaper = migratedDb.prepare('SELECT * FROM paper_nodes WHERE paper_id = ?').get('paper-new') as any
+      expect(newPaper).toBeTruthy()
+      expect(newPaper.title).toBe('New Paper')
+      expect(newPaper.year).toBe(2024)
+      expect(newPaper.influential_citation_count).toBe(10)
+
+      const dcCols = migratedDb.prepare('PRAGMA table_info(discovery_candidates)').all() as { name: string }[]
+      const dcColNames = dcCols.map(c => c.name)
+      expect(dcColNames).toContain('paper_id')
+      expect(dcColNames).toContain('source_query')
+      expect(dcColNames).toContain('state')
+      expect(dcColNames).not.toContain('title')
+      expect(dcColNames).not.toContain('abstract')
+      expect(dcColNames).not.toContain('year')
+      expect(dcColNames).not.toContain('citation_count')
+      expect(dcColNames).not.toContain('influential_citation_count')
+      expect(dcColNames).not.toContain('venue')
+      expect(dcColNames).not.toContain('authors')
+      expect(dcColNames).not.toContain('url')
+
+      const dcRows = migratedDb.prepare('SELECT * FROM discovery_candidates ORDER BY id').all() as any[]
+      expect(dcRows).toHaveLength(2)
+      expect(dcRows[0].paper_id).toBe('paper-new')
+      expect(dcRows[0].state).toBe('saved')
+      expect(dcRows[1].paper_id).toBe('paper-existing')
+    })
   })
 })

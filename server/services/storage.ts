@@ -1,6 +1,8 @@
 import Database from 'better-sqlite3'
 import fs from 'fs'
 import path from 'path'
+import { randomUUID } from 'crypto'
+import { runMigrations } from '../db/migrations'
 
 // ── Interfaces ──────────────────────────────────────────────────────────
 
@@ -10,17 +12,29 @@ export interface DocumentRow {
   file_path: string | null
   file_type: string | null
   created_at: string
+  match_score: number | null
+  lifecycle_status: string | null
+  // Analysis fields (from document_analysis JOIN)
   summary: string | null
   reading_card: string | null
   relation_analysis: string | null
   writing_materials: string | null
   todo_list: string | null
   tags: string | null
-  match_score: number | null
-  lifecycle_status: string | null
-  index_status: string | null
-  index_error: string | null
-  indexed_at: string | null
+}
+
+export interface DocumentAnalysisRow {
+  document_id: string
+  summary: string | null
+  reading_card: string | null
+  relation_analysis: string | null
+  writing_materials: string | null
+  todo_list: string | null
+  tags: string | null
+  analysis_version: number
+  source_history_id: string | null
+  created_at: string
+  updated_at: string
 }
 
 export interface ChunkRow {
@@ -60,14 +74,6 @@ export interface DocumentKBRow {
 export interface DiscoveryCandidateRow {
   id: string
   paper_id: string
-  title: string
-  abstract: string | null
-  year: number | null
-  citation_count: number
-  influential_citation_count: number
-  venue: string | null
-  authors: string | null
-  url: string | null
   source_query: string | null
   discovery_priority_score: number
   discovery_reason: string | null
@@ -158,20 +164,7 @@ export class StorageService {
     this.db = db
     this.db.pragma('journal_mode = WAL')
     this.db.pragma('foreign_keys = ON')
-    this.migrateDocumentLifecycle()
-  }
-
-  private migrateDocumentLifecycle() {
-    const columns = this.db.prepare('PRAGMA table_info(documents)').all() as { name: string }[]
-    const existing = new Set(columns.map(c => c.name))
-    const migrations: string[] = []
-    if (!existing.has('lifecycle_status')) migrations.push("ALTER TABLE documents ADD COLUMN lifecycle_status TEXT DEFAULT 'analyzed'")
-    if (!existing.has('index_status')) migrations.push("ALTER TABLE documents ADD COLUMN index_status TEXT DEFAULT 'not_indexed'")
-    if (!existing.has('index_error')) migrations.push('ALTER TABLE documents ADD COLUMN index_error TEXT')
-    if (!existing.has('indexed_at')) migrations.push('ALTER TABLE documents ADD COLUMN indexed_at TEXT')
-    for (const sql of migrations) {
-      this.db.exec(sql)
-    }
+    runMigrations(this.db)
   }
 
   static create(dataDir: string): StorageService {
@@ -193,36 +186,60 @@ export class StorageService {
     writingMaterials?: string; todoList?: string; tags?: string; matchScore?: number
   }) {
     this.db.prepare(`
-      INSERT INTO documents (id, file_name, file_path, file_type, summary, reading_card, relation_analysis, writing_materials, todo_list, tags, match_score)
-      VALUES (@id, @fileName, @filePath, @fileType, @summary, @readingCard, @relationAnalysis, @writingMaterials, @todoList, @tags, @matchScore)
+      INSERT INTO documents (id, file_name, file_path, file_type, match_score)
+      VALUES (@id, @fileName, @filePath, @fileType, @matchScore)
       ON CONFLICT(id) DO UPDATE SET
         file_name=excluded.file_name, file_path=excluded.file_path, file_type=excluded.file_type,
-        summary=COALESCE(excluded.summary, summary), reading_card=COALESCE(excluded.reading_card, reading_card),
-        relation_analysis=COALESCE(excluded.relation_analysis, relation_analysis),
-        writing_materials=COALESCE(excluded.writing_materials, writing_materials),
-        todo_list=COALESCE(excluded.todo_list, todo_list), tags=COALESCE(excluded.tags, tags),
         match_score=COALESCE(excluded.match_score, match_score)
     `).run({
       id: doc.id,
       fileName: doc.fileName,
       filePath: doc.filePath ?? null,
       fileType: doc.fileType ?? null,
-      summary: doc.summary ?? null,
-      readingCard: doc.readingCard ?? null,
-      relationAnalysis: doc.relationAnalysis ?? null,
-      writingMaterials: doc.writingMaterials ?? null,
-      todoList: doc.todoList ?? null,
-      tags: doc.tags ?? null,
       matchScore: doc.matchScore ?? null,
     })
+
+    // Upsert analysis fields into document_analysis
+    if (doc.summary || doc.readingCard || doc.relationAnalysis || doc.writingMaterials || doc.todoList || doc.tags) {
+      this.db.prepare(`
+        INSERT INTO document_analysis (document_id, summary, reading_card, relation_analysis, writing_materials, todo_list, tags)
+        VALUES (@documentId, @summary, @readingCard, @relationAnalysis, @writingMaterials, @todoList, @tags)
+        ON CONFLICT(document_id) DO UPDATE SET
+          summary=COALESCE(excluded.summary, summary), reading_card=COALESCE(excluded.reading_card, reading_card),
+          relation_analysis=COALESCE(excluded.relation_analysis, relation_analysis),
+          writing_materials=COALESCE(excluded.writing_materials, writing_materials),
+          todo_list=COALESCE(excluded.todo_list, todo_list), tags=COALESCE(excluded.tags, tags),
+          updated_at=datetime('now')
+      `).run({
+        documentId: doc.id,
+        summary: doc.summary ?? null,
+        readingCard: doc.readingCard ?? null,
+        relationAnalysis: doc.relationAnalysis ?? null,
+        writingMaterials: doc.writingMaterials ?? null,
+        todoList: doc.todoList ?? null,
+        tags: doc.tags ?? null,
+      })
+    }
   }
 
   getDocument(id: string): DocumentRow | undefined {
-    return this.db.prepare('SELECT * FROM documents WHERE id = ?').get(id) as DocumentRow | undefined
+    return this.db.prepare(`
+      SELECT d.*, da.summary, da.reading_card, da.relation_analysis,
+             da.writing_materials, da.todo_list, da.tags
+      FROM documents d
+      LEFT JOIN document_analysis da ON d.id = da.document_id
+      WHERE d.id = ?
+    `).get(id) as DocumentRow | undefined
   }
 
   listDocuments(): DocumentRow[] {
-    return this.db.prepare('SELECT * FROM documents ORDER BY created_at DESC').all() as DocumentRow[]
+    return this.db.prepare(`
+      SELECT d.*, da.summary, da.reading_card, da.relation_analysis,
+             da.writing_materials, da.todo_list, da.tags
+      FROM documents d
+      LEFT JOIN document_analysis da ON d.id = da.document_id
+      ORDER BY d.created_at DESC
+    `).all() as DocumentRow[]
   }
 
   deleteDocument(id: string) {
@@ -233,9 +250,26 @@ export class StorageService {
     this.db.prepare('UPDATE documents SET lifecycle_status = ? WHERE id = ?').run(status, id)
   }
 
-  updateDocumentIndexStatus(id: string, status: string, error?: string | null) {
-    this.db.prepare('UPDATE documents SET index_status = ?, index_error = ?, indexed_at = CASE WHEN ? = \'indexed\' THEN datetime(\'now\') ELSE indexed_at END WHERE id = ?')
-      .run(status, error ?? null, status, id)
+  updateDocumentIndexStatus(id: string, status: string, error?: string | null, knowledgeBaseId?: string | null) {
+    const kbId = knowledgeBaseId ?? null
+    const existing = this.db.prepare(
+      'SELECT id FROM document_vector_indexes WHERE document_id = ? AND (knowledge_base_id = ? OR (knowledge_base_id IS NULL AND ? IS NULL))'
+    ).get(id, kbId, kbId) as { id: string } | undefined
+
+    if (existing) {
+      this.db.prepare(`
+        UPDATE document_vector_indexes SET
+          status = ?, error = ?,
+          indexed_at = CASE WHEN ? = 'indexed' THEN datetime('now') ELSE indexed_at END,
+          updated_at = datetime('now')
+        WHERE id = ?
+      `).run(status, error ?? null, status, existing.id)
+    } else {
+      this.db.prepare(`
+        INSERT INTO document_vector_indexes (id, document_id, knowledge_base_id, status, error, indexed_at)
+        VALUES (?, ?, ?, ?, ?, CASE WHEN ? = 'indexed' THEN datetime('now') ELSE NULL END)
+      `).run(randomUUID(), id, kbId, status, error ?? null, status)
+    }
   }
 
   // ── Chunk methods ───────────────────────────────────────────────────
@@ -362,11 +396,14 @@ export class StorageService {
   })[] {
     return this.db.prepare(`
       SELECT d.*,
+        da.summary, da.reading_card, da.relation_analysis,
+        da.writing_materials, da.todo_list, da.tags,
         dkb.tags AS kb_tags,
         dkb.fit_score,
         dkb.recommended_action
       FROM documents d
       INNER JOIN document_knowledge_bases dkb ON d.id = dkb.document_id
+      LEFT JOIN document_analysis da ON d.id = da.document_id
       WHERE dkb.knowledge_base_id = ?
       ORDER BY d.created_at DESC
     `).all(knowledgeBaseId) as (DocumentRow & {
@@ -444,13 +481,28 @@ export class StorageService {
   // ── Discovery candidate methods ──────────────────────────────────────
 
   upsertDiscoveryCandidate(candidate: {
-    id: string; paperId: string; title: string; abstract?: string | null;
+    id: string; paperId: string; title?: string; abstract?: string | null;
     year?: number | null; citationCount?: number; influentialCitationCount?: number;
     venue?: string | null; authors?: string | null; url?: string | null;
     sourceQuery?: string | null; discoveryPriorityScore?: number;
     discoveryReason?: string | null; state?: string; knowledgeBaseId?: string | null
   }) {
     const kbId = candidate.knowledgeBaseId ?? null
+
+    // Upsert paper metadata into paper_nodes if title is provided
+    if (candidate.title) {
+      this.upsertPaperNode({
+        paperId: candidate.paperId,
+        title: candidate.title,
+        abstract: candidate.abstract ?? undefined,
+        year: candidate.year ?? undefined,
+        citationCount: candidate.citationCount ?? undefined,
+        venue: candidate.venue ?? undefined,
+        authors: candidate.authors ?? undefined,
+        url: candidate.url ?? undefined,
+      })
+    }
+
     // Check for existing candidate with same paper_id and matching knowledge_base_id
     const existing = this.db.prepare(
       'SELECT id FROM discovery_candidates WHERE paper_id = ? AND (knowledge_base_id = ? OR (knowledge_base_id IS NULL AND ? IS NULL))'
@@ -459,22 +511,14 @@ export class StorageService {
     if (existing) {
       this.db.prepare(`
         UPDATE discovery_candidates SET
-          title=@title, abstract=@abstract, year=@year, citation_count=@citationCount,
-          influential_citation_count=@influentialCitationCount, venue=@venue, authors=@authors,
-          url=@url, source_query=COALESCE(@sourceQuery, source_query),
-          discovery_priority_score=@discoveryPriorityScore, discovery_reason=@discoveryReason,
-          state=@state, updated_at=datetime('now')
+          source_query=COALESCE(@sourceQuery, source_query),
+          discovery_priority_score=@discoveryPriorityScore,
+          discovery_reason=@discoveryReason,
+          state=@state,
+          updated_at=datetime('now')
         WHERE id=@id
       `).run({
         id: existing.id,
-        title: candidate.title,
-        abstract: candidate.abstract ?? null,
-        year: candidate.year ?? null,
-        citationCount: candidate.citationCount ?? 0,
-        influentialCitationCount: candidate.influentialCitationCount ?? 0,
-        venue: candidate.venue ?? null,
-        authors: candidate.authors ?? null,
-        url: candidate.url ?? null,
         sourceQuery: candidate.sourceQuery ?? null,
         discoveryPriorityScore: candidate.discoveryPriorityScore ?? 0,
         discoveryReason: candidate.discoveryReason ?? null,
@@ -482,23 +526,13 @@ export class StorageService {
       })
     } else {
       this.db.prepare(`
-        INSERT INTO discovery_candidates (id, paper_id, title, abstract, year, citation_count,
-          influential_citation_count, venue, authors, url, source_query,
+        INSERT INTO discovery_candidates (id, paper_id, source_query,
           discovery_priority_score, discovery_reason, state, knowledge_base_id)
-        VALUES (@id, @paperId, @title, @abstract, @year, @citationCount,
-          @influentialCitationCount, @venue, @authors, @url, @sourceQuery,
+        VALUES (@id, @paperId, @sourceQuery,
           @discoveryPriorityScore, @discoveryReason, @state, @knowledgeBaseId)
       `).run({
         id: candidate.id,
         paperId: candidate.paperId,
-        title: candidate.title,
-        abstract: candidate.abstract ?? null,
-        year: candidate.year ?? null,
-        citationCount: candidate.citationCount ?? 0,
-        influentialCitationCount: candidate.influentialCitationCount ?? 0,
-        venue: candidate.venue ?? null,
-        authors: candidate.authors ?? null,
-        url: candidate.url ?? null,
         sourceQuery: candidate.sourceQuery ?? null,
         discoveryPriorityScore: candidate.discoveryPriorityScore ?? 0,
         discoveryReason: candidate.discoveryReason ?? null,

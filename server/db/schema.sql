@@ -1,20 +1,28 @@
+-- Fresh schema for Wonder (applied via CREATE IF NOT EXISTS)
+-- Migrations in server/db/migrations.ts handle transitions from old schemas.
+
 CREATE TABLE IF NOT EXISTS documents (
   id TEXT PRIMARY KEY,
   file_name TEXT NOT NULL,
   file_path TEXT,
   file_type TEXT,
   created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  match_score REAL,
+  lifecycle_status TEXT DEFAULT 'analyzed'
+);
+
+CREATE TABLE IF NOT EXISTS document_analysis (
+  document_id TEXT PRIMARY KEY REFERENCES documents(id) ON DELETE CASCADE,
   summary TEXT,
   reading_card TEXT,
   relation_analysis TEXT,
   writing_materials TEXT,
   todo_list TEXT,
   tags TEXT,
-  match_score REAL,
-  lifecycle_status TEXT DEFAULT 'analyzed',
-  index_status TEXT DEFAULT 'not_indexed',
-  index_error TEXT,
-  indexed_at TEXT
+  analysis_version INTEGER DEFAULT 1,
+  source_history_id TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS chunks (
@@ -71,14 +79,6 @@ CREATE TABLE IF NOT EXISTS readme_suggestions (
 CREATE TABLE IF NOT EXISTS discovery_candidates (
   id TEXT PRIMARY KEY,
   paper_id TEXT NOT NULL,
-  title TEXT NOT NULL,
-  abstract TEXT,
-  year INTEGER,
-  citation_count INTEGER DEFAULT 0,
-  influential_citation_count INTEGER DEFAULT 0,
-  venue TEXT,
-  authors TEXT,
-  url TEXT,
   source_query TEXT,
   discovery_priority_score REAL DEFAULT 0,
   discovery_reason TEXT,
@@ -110,12 +110,6 @@ CREATE TABLE IF NOT EXISTS batch_items (
   completed_at TEXT
 );
 
-CREATE INDEX IF NOT EXISTS idx_discovery_candidates_kb_id ON discovery_candidates(knowledge_base_id);
-CREATE INDEX IF NOT EXISTS idx_discovery_candidates_state ON discovery_candidates(state);
-
-CREATE INDEX IF NOT EXISTS idx_batch_items_run_id ON batch_items(batch_run_id);
-CREATE INDEX IF NOT EXISTS idx_batch_runs_created_at ON batch_runs(created_at DESC);
-
 CREATE TABLE IF NOT EXISTS qa_sessions (
   id TEXT PRIMARY KEY,
   title TEXT NOT NULL,
@@ -134,21 +128,13 @@ CREATE TABLE IF NOT EXISTS qa_messages (
   created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX IF NOT EXISTS idx_qa_messages_session_id ON qa_messages(session_id);
-CREATE INDEX IF NOT EXISTS idx_qa_sessions_updated_at ON qa_sessions(updated_at DESC);
-
-CREATE INDEX IF NOT EXISTS idx_chunks_document_id ON chunks(document_id);
-CREATE INDEX IF NOT EXISTS idx_analysis_history_created_at ON analysis_history(created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_dkb_kb_id ON document_knowledge_bases(knowledge_base_id);
-CREATE INDEX IF NOT EXISTS idx_dkb_doc_id ON document_knowledge_bases(document_id);
-CREATE INDEX IF NOT EXISTS idx_readme_suggestions_kb_id ON readme_suggestions(knowledge_base_id);
-
 CREATE TABLE IF NOT EXISTS paper_nodes (
   paper_id TEXT PRIMARY KEY,
   title TEXT NOT NULL,
   abstract TEXT,
   year INTEGER,
   citation_count INTEGER DEFAULT 0,
+  influential_citation_count INTEGER DEFAULT 0,
   venue TEXT,
   authors TEXT,
   url TEXT,
@@ -164,6 +150,60 @@ CREATE TABLE IF NOT EXISTS paper_edges (
   created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS document_vector_indexes (
+  id TEXT PRIMARY KEY,
+  document_id TEXT NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+  knowledge_base_id TEXT REFERENCES knowledge_bases(id) ON DELETE SET NULL,
+  backend TEXT NOT NULL DEFAULT 'chroma',
+  collection_name TEXT,
+  embedding_provider TEXT,
+  embedding_model TEXT,
+  embedding_dimensions INTEGER,
+  chunk_count INTEGER DEFAULT 0,
+  index_version INTEGER DEFAULT 1,
+  status TEXT NOT NULL DEFAULT 'not_indexed',
+  error TEXT,
+  indexed_at TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(document_id, knowledge_base_id, backend, collection_name)
+);
+
+CREATE TABLE IF NOT EXISTS schema_migrations (
+  version INTEGER PRIMARY KEY,
+  name TEXT NOT NULL,
+  applied_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Indexes
+CREATE INDEX IF NOT EXISTS idx_discovery_candidates_kb_id ON discovery_candidates(knowledge_base_id);
+CREATE INDEX IF NOT EXISTS idx_discovery_candidates_state ON discovery_candidates(state);
+CREATE INDEX IF NOT EXISTS idx_discovery_candidates_paper_id ON discovery_candidates(paper_id);
+
+CREATE INDEX IF NOT EXISTS idx_batch_items_run_id ON batch_items(batch_run_id);
+CREATE INDEX IF NOT EXISTS idx_batch_runs_created_at ON batch_runs(created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_qa_messages_session_id ON qa_messages(session_id);
+CREATE INDEX IF NOT EXISTS idx_qa_sessions_updated_at ON qa_sessions(updated_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_chunks_document_id ON chunks(document_id);
+CREATE INDEX IF NOT EXISTS idx_analysis_history_created_at ON analysis_history(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_dkb_kb_id ON document_knowledge_bases(knowledge_base_id);
+CREATE INDEX IF NOT EXISTS idx_dkb_doc_id ON document_knowledge_bases(document_id);
+CREATE INDEX IF NOT EXISTS idx_readme_suggestions_kb_id ON readme_suggestions(knowledge_base_id);
+
 CREATE INDEX IF NOT EXISTS idx_paper_edges_from ON paper_edges(from_paper_id);
 CREATE INDEX IF NOT EXISTS idx_paper_edges_to ON paper_edges(to_paper_id);
 CREATE INDEX IF NOT EXISTS idx_paper_edges_seed ON paper_edges(source_seed_paper_id);
+
+CREATE INDEX IF NOT EXISTS idx_dvi_document_id ON document_vector_indexes(document_id);
+CREATE INDEX IF NOT EXISTS idx_dvi_kb_id ON document_vector_indexes(knowledge_base_id);
+CREATE INDEX IF NOT EXISTS idx_dvi_status ON document_vector_indexes(status);
+
+-- Partial unique indexes for discovery: one global candidate per paper, one KB-scoped per (paper, KB)
+CREATE UNIQUE INDEX IF NOT EXISTS idx_discovery_global_unique
+  ON discovery_candidates(paper_id)
+  WHERE knowledge_base_id IS NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_discovery_kb_unique
+  ON discovery_candidates(paper_id, knowledge_base_id)
+  WHERE knowledge_base_id IS NOT NULL;
