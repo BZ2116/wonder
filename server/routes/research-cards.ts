@@ -144,7 +144,7 @@ export function researchCardRoutes(storage: StorageService, python: PythonBacken
       const refs = (sources.refs ?? []).map(normalizeEvidenceRef)
       return c.json({
         question: prevUser?.content ?? '',
-        coreClaims: message.content.length > 500 ? message.content.slice(0, 500) : message.content,
+        coreClaims: [message.content.length > 500 ? message.content.slice(0, 500) : message.content],
         knowledgeType: 'other',
         tags: [],
         subDirection: null,

@@ -88,7 +88,7 @@ describe('researchCardRoutes', () => {
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.question).toBe('What is RAG?')
-    expect(body.coreClaims).toBe('RAG is a technique that combines retrieval with generation.')
+    expect(body.coreClaims).toEqual(['RAG is a technique that combines retrieval with generation.'])
     expect(body.noPaperEvidence).toBe(false)
     expect(body.evidenceRefs).toHaveLength(1)
     expect(body.evidenceRefs[0].documentId).toBe('doc1')
