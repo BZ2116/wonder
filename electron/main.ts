@@ -1,4 +1,4 @@
-﻿import { app, BrowserWindow, ipcMain, screen, dialog } from 'electron'
+import { app, BrowserWindow, ipcMain, screen } from 'electron'
 import path from 'path'
 import net from 'net'
 import fs from 'fs'
@@ -208,9 +208,19 @@ window.splashAPI.onError(function(msg) {
   return splash
 }
 
-async function createWindow() {
-  splashWindow = createSplash()
+function sendSplashStage(msg: string) {
+  if (splashWindow && !splashWindow.isDestroyed()) {
+    splashWindow.webContents.send('splash:stage', msg)
+  }
+}
 
+function sendSplashError(msg: string) {
+  if (splashWindow && !splashWindow.isDestroyed()) {
+    splashWindow.webContents.send('splash:error', msg)
+  }
+}
+
+async function startApp() {
   const port = await findFreePort()
   const pythonPort = await findFreePort()
 
@@ -232,19 +242,24 @@ async function createWindow() {
     fs.writeFileSync(versionFile, currentVersion)
   }
   process.env.STATIC_DIR = staticDir
+
+  // Stage 1: Python backend
+  sendSplashStage('启动 AI 后端...')
   try {
     await startPythonBackend(pythonPort)
   } catch (err) {
     console.error('Failed to start Python AI Core:', err)
+    sendSplashError(`AI 后端启动失败\n${err instanceof Error ? err.message : String(err)}`)
+    return
   }
 
-  // Load server in-process (no child process spawn 鈥?avoids system Node dependency)
+  // Stage 2: Node server
+  sendSplashStage('启动服务...')
   try {
     serverModule = require(path.join(__dirname, '../dist-server/server/index.js'))
   } catch (err) {
     console.error('Failed to start server:', err)
-    dialog.showErrorBox('Wonder 鍚姩澶辫触', `鏈嶅姟鍣ㄥ惎鍔ㄥけ璐?\n${err instanceof Error ? err.message : String(err)}`)
-    app.quit()
+    sendSplashError(`服务启动失败\n${err instanceof Error ? err.message : String(err)}`)
     return
   }
 
@@ -252,11 +267,12 @@ async function createWindow() {
     await waitForServer(port)
   } catch (err) {
     console.error('Server did not start in time:', err)
-    dialog.showErrorBox('Wonder 鍚姩澶辫触', `鏈嶅姟鍣ㄦ湭鍦ㄨ瀹氭椂闂村唴灏辩华:\n${err instanceof Error ? err.message : String(err)}`)
-    app.quit()
+    sendSplashError(`服务启动超时（15s）\n${err instanceof Error ? err.message : String(err)}`)
     return
   }
 
+  // Stage 3: Load main window
+  sendSplashStage('加载界面...')
   const { width, height } = screen.getPrimaryDisplay().workAreaSize
   const winW = Math.max(MIN_WINDOW_WIDTH, Math.min(1200, width))
   const winH = Math.max(MIN_WINDOW_HEIGHT, Math.min(800, height))
@@ -286,8 +302,8 @@ async function createWindow() {
   }
   mainWindow.on('closed', () => { mainWindow = null })
 
-  // Close splash once the main window has finished loading
-  mainWindow.webContents.on('did-finish-load', () => {
+  // Close splash when main window is ready to show
+  mainWindow.on('ready-to-show', () => {
     if (splashWindow) {
       splashWindow.close()
       splashWindow = null
@@ -301,6 +317,11 @@ async function createWindow() {
   mainWindow.on('unmaximize', () => {
     mainWindow?.webContents.send('window:maximize-change', false)
   })
+}
+
+async function createWindow() {
+  splashWindow = createSplash()
+  await startApp()
 }
 
 app.on('second-instance', () => {
@@ -319,7 +340,7 @@ app.on('before-quit', () => {
   try {
     serverModule?.closeStorage?.()
   } catch {
-    // Best-effort cleanup 鈥?don't block quit on storage close failure
+    // Best-effort cleanup — don't block quit on storage close failure
   }
   if (pythonProcess && !pythonProcess.killed) {
     pythonProcess.kill()
@@ -328,7 +349,7 @@ app.on('before-quit', () => {
   app.exit(0)
 })
 
-// 绐楀彛鎺у埗 IPC
+// 窗口控制 IPC
 ipcMain.on('window:minimize', () => mainWindow?.minimize())
 ipcMain.on('window:maximize', () => {
   if (mainWindow?.isMaximized()) mainWindow.unmaximize()
@@ -336,3 +357,26 @@ ipcMain.on('window:maximize', () => {
 })
 ipcMain.on('window:close', () => mainWindow?.close())
 
+ipcMain.on('splash:retry', async () => {
+  // Cleanup previous attempt
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.destroy()
+    mainWindow = null
+  }
+  if (pythonProcess && !pythonProcess.killed) {
+    pythonProcess.kill()
+    pythonProcess = null
+  }
+  serverModule = null
+
+  // Reset splash to normal state
+  sendSplashStage('启动中...')
+
+  // Re-run startup
+  try {
+    await startApp()
+  } catch (err) {
+    console.error('Retry failed:', err)
+    sendSplashError(`重试失败: ${err instanceof Error ? err.message : String(err)}`)
+  }
+})
