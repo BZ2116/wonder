@@ -232,6 +232,21 @@ export interface ResearchCardVectorIndexRow {
   updated_at: string
 }
 
+export interface DocumentMetadataRow {
+  document_id: string
+  title: string | null
+  authors: string
+  year: number | null
+  venue: string | null
+  doi: string | null
+  url: string | null
+  abstract: string | null
+  keywords: string
+  metadata_status: string
+  metadata_source: string
+  updated_at: string
+}
+
 // ── StorageService ──────────────────────────────────────────────────────
 
 export class StorageService {
@@ -1162,6 +1177,109 @@ export class StorageService {
     return this.db.prepare(
       "SELECT * FROM qa_messages WHERE session_id = ? AND role = 'user' AND created_at < ? ORDER BY created_at DESC LIMIT 1"
     ).get(sessionId, beforeCreatedAt) as QAMessageRow | undefined
+  }
+
+  // ── Document Metadata methods ─────────────────────────────────────────
+
+  upsertDocumentMetadata(meta: {
+    documentId: string
+    title?: string | null
+    authors?: string[]
+    year?: number | null
+    venue?: string | null
+    doi?: string | null
+    url?: string | null
+    abstract?: string | null
+    keywords?: string[]
+    metadataStatus?: string
+    metadataSource?: string
+  }) {
+    this.db.prepare(`
+      INSERT INTO document_metadata
+        (document_id, title, authors, year, venue, doi, url, abstract, keywords, metadata_status, metadata_source)
+      VALUES
+        (@documentId, @title, @authors, @year, @venue, @doi, @url, @abstract, @keywords, @metadataStatus, @metadataSource)
+      ON CONFLICT(document_id) DO UPDATE SET
+        title=COALESCE(excluded.title, title),
+        authors=excluded.authors,
+        year=COALESCE(excluded.year, year),
+        venue=COALESCE(excluded.venue, venue),
+        doi=COALESCE(excluded.doi, doi),
+        url=COALESCE(excluded.url, url),
+        abstract=COALESCE(excluded.abstract, abstract),
+        keywords=excluded.keywords,
+        metadata_status=excluded.metadata_status,
+        metadata_source=excluded.metadata_source,
+        updated_at=datetime('now')
+    `).run({
+      documentId: meta.documentId,
+      title: meta.title ?? null,
+      authors: JSON.stringify(meta.authors ?? []),
+      year: meta.year ?? null,
+      venue: meta.venue ?? null,
+      doi: meta.doi ?? null,
+      url: meta.url ?? null,
+      abstract: meta.abstract ?? null,
+      keywords: JSON.stringify(meta.keywords ?? []),
+      metadataStatus: meta.metadataStatus ?? 'missing',
+      metadataSource: meta.metadataSource ?? 'none',
+    })
+  }
+
+  getDocumentMetadata(documentId: string): DocumentMetadataRow | undefined {
+    return this.db.prepare('SELECT * FROM document_metadata WHERE document_id = ?').get(documentId) as DocumentMetadataRow | undefined
+  }
+
+  getDocumentsByKBWithMetadata(knowledgeBaseId: string): (DocumentRow & {
+    kb_tags: string | null
+    fit_score: number | null
+    recommended_action: string | null
+    title: string | null
+    authors: string
+    year: number | null
+    venue: string | null
+    abstract: string | null
+    metadata_status: string
+    metadata_source: string
+    index_status: string | null
+    index_error: string | null
+  })[] {
+    return this.db.prepare(`
+      SELECT d.*,
+        da.summary, da.reading_card, da.relation_analysis,
+        da.writing_materials, da.todo_list, da.tags,
+        dkb.tags AS kb_tags,
+        dkb.fit_score,
+        dkb.recommended_action,
+        dm.title, dm.authors, dm.year, dm.venue, dm.abstract,
+        dm.metadata_status, dm.metadata_source,
+        dvi.status AS index_status,
+        dvi.error AS index_error
+      FROM documents d
+      INNER JOIN document_knowledge_bases dkb ON d.id = dkb.document_id
+      LEFT JOIN document_analysis da ON d.id = da.document_id
+      LEFT JOIN document_metadata dm ON d.id = dm.document_id
+      LEFT JOIN (
+        SELECT document_id, knowledge_base_id, status, error,
+               ROW_NUMBER() OVER (PARTITION BY document_id, knowledge_base_id ORDER BY updated_at DESC) AS rn
+        FROM document_vector_indexes
+      ) dvi ON d.id = dvi.document_id AND dvi.knowledge_base_id = dkb.knowledge_base_id AND dvi.rn = 1
+      WHERE dkb.knowledge_base_id = ?
+      ORDER BY d.created_at DESC
+    `).all(knowledgeBaseId) as (DocumentRow & {
+      kb_tags: string | null
+      fit_score: number | null
+      recommended_action: string | null
+      title: string | null
+      authors: string
+      year: number | null
+      venue: string | null
+      abstract: string | null
+      metadata_status: string
+      metadata_source: string
+      index_status: string | null
+      index_error: string | null
+    })[]
   }
 
   // ── Lifecycle ───────────────────────────────────────────────────────

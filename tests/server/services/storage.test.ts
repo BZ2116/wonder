@@ -773,6 +773,37 @@ describe('StorageService', () => {
     expect(prev!.content).toBe('q1')
   })
 
+  // ── Document Metadata tests ──────────────────────────────────────────
+
+  it('should upsert and retrieve document metadata', () => {
+    storage.upsertDocument({ id: 'doc1', fileName: 'paper.pdf', fileType: 'pdf' })
+    storage.upsertDocumentMetadata({
+      documentId: 'doc1',
+      title: 'Paper Title',
+      authors: ['Author A'],
+      year: 2024,
+      metadataStatus: 'partial',
+      metadataSource: 'reading_card',
+    })
+
+    const meta = storage.getDocumentMetadata('doc1')!
+    expect(meta.title).toBe('Paper Title')
+    expect(JSON.parse(meta.authors || '[]')).toEqual(['Author A'])
+    expect(meta.metadata_status).toBe('partial')
+  })
+
+  it('should list KB documents with metadata and index status', () => {
+    storage.createKnowledgeBase({ id: 'kb1', name: 'KB' })
+    storage.upsertDocument({ id: 'doc1', fileName: 'paper.pdf', fileType: 'pdf' })
+    storage.addDocumentToKB({ documentId: 'doc1', knowledgeBaseId: 'kb1' })
+    storage.upsertDocumentMetadata({ documentId: 'doc1', title: 'Paper Title', authors: [], metadataStatus: 'partial', metadataSource: 'file_name' })
+    storage.upsertDocumentVectorIndex({ id: 'idx1', documentId: 'doc1', knowledgeBaseId: 'kb1', status: 'indexed' })
+
+    const docs = storage.getDocumentsByKBWithMetadata('kb1')
+    expect(docs[0].title).toBe('Paper Title')
+    expect(docs[0].index_status).toBe('indexed')
+  })
+
   // ── Migration tests ─────────────────────────────────────────────────
 
   describe('schema migrations', () => {

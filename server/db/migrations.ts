@@ -16,6 +16,7 @@ export function runMigrations(db: Database.Database): void {
   applyMigration(db, 2, 'create_document_vector_indexes', migrateCreateDocumentVectorIndexes)
   applyMigration(db, 3, 'unify_paper_metadata', migrateUnifyPaperMetadata)
   applyMigration(db, 4, 'create_research_cards', migrateCreateResearchCards)
+  applyMigration(db, 5, 'create_document_metadata', migrateCreateDocumentMetadata)
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────
@@ -387,4 +388,31 @@ function migrateCreateResearchCards(db: Database.Database): void {
   db.exec('CREATE INDEX IF NOT EXISTS idx_research_card_vector_indexes_status ON research_card_vector_indexes(status)')
 
   assertForeignKeyCheck(db, '4')
+}
+
+// ── Migration 5: Create document_metadata ──────────────────────────────
+
+function migrateCreateDocumentMetadata(db: Database.Database): void {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS document_metadata (
+      document_id TEXT PRIMARY KEY REFERENCES documents(id) ON DELETE CASCADE,
+      title TEXT,
+      authors TEXT NOT NULL DEFAULT '[]',
+      year INTEGER,
+      venue TEXT,
+      doi TEXT,
+      url TEXT,
+      abstract TEXT,
+      keywords TEXT NOT NULL DEFAULT '[]',
+      metadata_status TEXT NOT NULL DEFAULT 'missing',
+      metadata_source TEXT NOT NULL DEFAULT 'none',
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `)
+
+  db.exec('CREATE INDEX IF NOT EXISTS idx_document_metadata_title ON document_metadata(title)')
+  db.exec('CREATE INDEX IF NOT EXISTS idx_document_metadata_year ON document_metadata(year)')
+  db.exec('CREATE INDEX IF NOT EXISTS idx_document_metadata_status ON document_metadata(metadata_status)')
+
+  assertForeignKeyCheck(db, '5')
 }

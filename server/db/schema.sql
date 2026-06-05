@@ -218,6 +218,21 @@ CREATE TABLE IF NOT EXISTS research_card_vector_indexes (
   updated_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS document_metadata (
+  document_id TEXT PRIMARY KEY REFERENCES documents(id) ON DELETE CASCADE,
+  title TEXT,
+  authors TEXT NOT NULL DEFAULT '[]',
+  year INTEGER,
+  venue TEXT,
+  doi TEXT,
+  url TEXT,
+  abstract TEXT,
+  keywords TEXT NOT NULL DEFAULT '[]',
+  metadata_status TEXT NOT NULL DEFAULT 'missing',
+  metadata_source TEXT NOT NULL DEFAULT 'none',
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS schema_migrations (
   version INTEGER PRIMARY KEY,
   name TEXT NOT NULL,
