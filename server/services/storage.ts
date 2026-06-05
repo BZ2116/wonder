@@ -325,6 +325,49 @@ export class StorageService {
     `).all() as DocumentRow[]
   }
 
+  /**
+   * List all documents with metadata columns (title, authors, year, venue, doi, index_status, metadata_status).
+   * Task 1 will replace this stub with a real SQL implementation.
+   */
+  listDocumentsWithMetadata(): any[] {
+    return this.db.prepare(`
+      SELECT d.id, d.file_name, d.file_path, d.file_type, d.created_at, d.lifecycle_status,
+             dm.title, dm.authors, dm.year, dm.venue, dm.doi,
+             vi.status AS index_status, dm.status AS metadata_status
+      FROM documents d
+      LEFT JOIN document_metadata dm ON d.id = dm.document_id
+      LEFT JOIN (
+        SELECT document_id, MAX(status) AS status
+        FROM vector_indexes
+        GROUP BY document_id
+      ) vi ON d.id = vi.document_id
+      ORDER BY d.created_at DESC
+    `).all()
+  }
+
+  /**
+   * List documents belonging to a knowledge base (via document_knowledge_bases membership) with metadata.
+   * Task 1 will replace this stub with a real SQL implementation.
+   */
+  getDocumentsByKBWithMetadata(knowledgeBaseId: string): any[] {
+    return this.db.prepare(`
+      SELECT d.id, d.file_name, d.file_path, d.file_type, d.created_at, d.lifecycle_status,
+             dkb.knowledge_base_id, dkb.tags AS kb_tags,
+             dm.title, dm.authors, dm.year, dm.venue, dm.doi,
+             vi.status AS index_status, dm.status AS metadata_status
+      FROM documents d
+      INNER JOIN document_knowledge_bases dkb ON d.id = dkb.document_id
+      LEFT JOIN document_metadata dm ON d.id = dm.document_id
+      LEFT JOIN (
+        SELECT document_id, MAX(status) AS status
+        FROM vector_indexes
+        GROUP BY document_id
+      ) vi ON d.id = vi.document_id
+      WHERE dkb.knowledge_base_id = ?
+      ORDER BY d.created_at DESC
+    `).all(knowledgeBaseId)
+  }
+
   deleteDocument(id: string) {
     this.db.prepare('DELETE FROM documents WHERE id = ?').run(id)
   }

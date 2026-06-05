@@ -2,6 +2,18 @@ import { Hono } from 'hono'
 import { StorageService } from '../services/storage'
 import { PythonBackendClient } from '../services/python-backend'
 
+function parseAuthors(value: unknown): string[] {
+  if (Array.isArray(value)) return value.map(String)
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value)
+      if (Array.isArray(parsed)) return parsed.map(String)
+    } catch { /* use comma fallback */ }
+    return value.split(/[;,，、]/).map(v => v.trim()).filter(Boolean)
+  }
+  return []
+}
+
 export function knowledgeRoutes(storage: StorageService, python: PythonBackendClient) {
   const app = new Hono()
 
@@ -15,15 +27,22 @@ export function knowledgeRoutes(storage: StorageService, python: PythonBackendCl
     const knowledgeBaseId = c.req.query('knowledgeBaseId') || ''
     const limit = Math.min(Number(c.req.query('limit') || 20), 50)
 
-    const docs = storage.listDocuments()
-      .filter((doc: any) => !knowledgeBaseId || doc.knowledge_base_id === knowledgeBaseId)
+    const rawDocs = knowledgeBaseId
+      ? storage.getDocumentsByKBWithMetadata(knowledgeBaseId)
+      : storage.listDocumentsWithMetadata()
+
+    const docs = rawDocs
       .filter((doc: any) => {
         if (!q) return true
         const haystack = [
           doc.file_name,
           doc.title,
-          doc.authors,
+          typeof doc.authors === 'string' ? doc.authors : JSON.stringify(doc.authors),
           doc.year != null ? String(doc.year) : '',
+          doc.venue,
+          doc.doi,
+          doc.tags,
+          doc.kb_tags,
         ].filter(Boolean).join(' ').toLowerCase()
         return haystack.includes(q)
       })
@@ -32,10 +51,12 @@ export function knowledgeRoutes(storage: StorageService, python: PythonBackendCl
         id: doc.id,
         fileName: doc.file_name || doc.title || doc.id,
         title: doc.title || null,
-        authors: doc.authors || null,
+        authors: parseAuthors(doc.authors),
         year: doc.year || null,
+        venue: doc.venue || null,
         knowledgeBaseId: doc.knowledge_base_id || null,
-        indexedStatus: doc.status || doc.indexed_status || doc.lifecycle_status || 'unknown',
+        indexedStatus: doc.index_status || doc.status || doc.indexed_status || doc.lifecycle_status || 'unknown',
+        metadataStatus: doc.metadata_status || null,
       }))
 
     return c.json(docs)

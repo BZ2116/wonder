@@ -380,12 +380,20 @@ export default function QA() {
                                     {doc.fileName}
                                   </Typography.Text>
                                 )}
-                                {(doc.authors || doc.year) && (
+                                {(doc.authors || doc.year || doc.venue) && (
                                   <Typography.Text type="secondary" style={{ fontSize: 11 }}>
-                                    {doc.authors}{doc.authors && doc.year ? ', ' : ''}{doc.year}
+                                    {Array.isArray(doc.authors) ? doc.authors.join(', ') : doc.authors}
+                                    {doc.authors && doc.year ? ', ' : ''}
+                                    {doc.year}
+                                    {doc.venue ? ` (${doc.venue})` : ''}
                                   </Typography.Text>
                                 )}
                               </div>
+                              {doc.metadataStatus && doc.metadataStatus !== 'complete' && (
+                                <Tag color="warning" style={{ fontSize: 11, margin: 0 }}>
+                                  {doc.metadataStatus === 'missing' ? '元数据缺失' : doc.metadataStatus === 'partial' ? '元数据不完整' : doc.metadataStatus}
+                                </Tag>
+                              )}
                               {doc.indexedStatus && doc.indexedStatus !== 'indexed' && (
                                 <Tag color="warning" style={{ fontSize: 11, margin: 0 }}>
                                   {doc.indexedStatus === 'indexing' ? '索引中' : doc.indexedStatus === 'failed' ? '索引失败' : doc.indexedStatus}

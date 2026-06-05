@@ -31,10 +31,12 @@ export interface MentionedDoc {
   id: string
   fileName: string
   title?: string | null
-  authors?: string | null
+  authors?: string[] | string | null
   year?: number | string | null
+  venue?: string | null
   knowledgeBaseId?: string | null
   indexedStatus?: string | null
+  metadataStatus?: string | null
 }
 
 interface MentionSearchContext {

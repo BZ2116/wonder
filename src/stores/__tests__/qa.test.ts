@@ -267,7 +267,7 @@ describe('useQAStore', () => {
 
   it('searchMentions requests documents when query is empty', async () => {
     mockApi.get.mockResolvedValueOnce([
-      { id: 'doc-1', fileName: 'paper.pdf', title: 'Paper Title', authors: 'A', year: 2024, knowledgeBaseId: 'kb1', indexedStatus: 'indexed' },
+      { id: 'doc-1', fileName: 'paper.pdf', title: 'Paper Title', authors: 'A', year: 2024, knowledgeBaseId: 'kb1', indexedStatus: 'indexed', metadataStatus: 'complete' },
     ])
 
     await useQAStore.getState().searchMentions('', { knowledgeBaseId: 'kb1' })
@@ -276,6 +276,17 @@ describe('useQAStore', () => {
     expect(useQAStore.getState().mentionSearchResults).toEqual([
       expect.objectContaining({ id: 'doc-1', fileName: 'paper.pdf', title: 'Paper Title' }),
     ])
+  })
+
+  it('searchMentions requests KB-scoped documents for bare @', async () => {
+    mockApi.get.mockResolvedValueOnce([
+      { id: 'doc-1', fileName: 'paper.pdf', title: 'Paper Title', authors: ['A'], year: 2024, knowledgeBaseId: 'kb1', indexedStatus: 'indexed', metadataStatus: 'complete' },
+    ])
+
+    await useQAStore.getState().searchMentions('', { knowledgeBaseId: 'kb1' })
+
+    expect(mockApi.get).toHaveBeenCalledWith('/api/knowledge/documents/search?q=&knowledgeBaseId=kb1&limit=20')
+    expect(useQAStore.getState().mentionSearchResults[0].title).toBe('Paper Title')
   })
 
   it('searchMentions encodes non-empty query', async () => {
