@@ -1,4 +1,4 @@
-from typing import Dict, Any, Optional, List, Generator, Tuple
+from typing import Dict, Any, Optional, List, Generator, Literal, Tuple
 from enum import Enum
 from concurrent.futures import ThreadPoolExecutor
 import re as _re
@@ -12,7 +12,7 @@ from backend.agents.qa_policy import build_initial_policy, finalize_policy_after
 from backend.rag.retriever import RAGRetriever
 
 
-def classify_evidence(refs: list[dict]) -> str:
+def classify_evidence(refs: list[dict]) -> Literal["none", "weak", "reliable"]:
     """Classify evidence status from source refs, excluding README/profile background."""
     non_readme_refs = [
         ref for ref in refs

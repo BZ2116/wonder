@@ -67,8 +67,15 @@ export function knowledgeRoutes(storage: StorageService, python: PythonBackendCl
     const docs = storage.listDocuments()
     let updated = 0
     let missing = 0
+    let skipped = 0
 
     for (const doc of docs) {
+      const existing = storage.getDocumentMetadata(doc.id)
+      if (existing?.metadata_status === 'complete') {
+        skipped += 1
+        continue
+      }
+
       const history = storage.getLatestHistoryByDocumentId(doc.id)
       const meta = extractDocumentMetadata({
         fileName: doc.file_name,
@@ -94,7 +101,7 @@ export function knowledgeRoutes(storage: StorageService, python: PythonBackendCl
       else updated += 1
     }
 
-    return c.json({ updated, missing, total: docs.length })
+    return c.json({ updated, missing, skipped, total: docs.length })
   })
 
   app.post('/documents/:id/metadata/backfill', async (c) => {

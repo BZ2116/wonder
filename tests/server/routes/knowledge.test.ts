@@ -7,6 +7,7 @@ function createBackfillStorage(opts: { docs?: any[]; historyMap?: Record<string,
   return {
     listDocuments: vi.fn(() => docs),
     getDocument: vi.fn((id: string) => docs.find((d: any) => d.id === id) ?? undefined),
+    getDocumentMetadata: vi.fn(() => null),
     getLatestHistoryByDocumentId: vi.fn((id: string) => historyMap[id] ?? undefined),
     upsertDocumentMetadata: vi.fn(),
     listDocumentsWithMetadata: vi.fn(() => []),
@@ -325,7 +326,7 @@ describe('knowledgeRoutes backfill endpoints', () => {
 
     const res = await app.request('/documents/metadata/backfill', { method: 'POST' })
     const body = await res.json()
-    expect(body).toEqual({ updated: 0, missing: 0, total: 0 })
+    expect(body).toEqual({ updated: 0, missing: 0, skipped: 0, total: 0 })
     expect(storage.upsertDocumentMetadata).not.toHaveBeenCalled()
   })
 })

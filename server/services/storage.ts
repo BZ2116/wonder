@@ -1271,7 +1271,7 @@ export class StorageService {
         dkb.tags AS kb_tags,
         dkb.fit_score,
         dkb.recommended_action,
-        dm.title, dm.authors, dm.year, dm.venue, dm.abstract,
+        dm.title, dm.authors, dm.year, dm.venue, dm.doi, dm.abstract,
         dm.metadata_status, dm.metadata_source,
         dvi.status AS index_status,
         dvi.error AS index_error
