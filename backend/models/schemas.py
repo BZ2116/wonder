@@ -1,5 +1,5 @@
 from typing import Any, List, Literal, Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 EvidenceStatus = Literal["none", "weak", "reliable"]
 
@@ -126,6 +126,7 @@ class KnowledgeQARequest(BaseModel):
     conversation_history: Optional[List[dict]] = None
     chat_config: Optional[ChatConfig] = None
     embedding_config: Optional[NormalizedEmbeddingConfig] = None
+    collection_names: Optional[List[str]] = None
 
 
 class SourceRef(BaseModel):
@@ -228,6 +229,11 @@ class KnowledgeIndexRequest(BaseModel):
     abstract: Optional[str] = None
     keywords: List[str] = []
     metadata_status: Optional[str] = None
+
+    @field_validator("file_path", mode="before")
+    @classmethod
+    def coerce_null_file_path(cls, value):
+        return "" if value is None else value
 
 
 class ResearchCardIndexRequest(BaseModel):

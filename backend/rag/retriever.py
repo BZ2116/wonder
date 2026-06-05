@@ -64,6 +64,22 @@ class RAGRetriever:
                 where=content_where,
                 collection_name=collection_name,
             )
+        elif doc_ids:
+            # Strict doc_ids fallback: query content directly using the provided doc_ids
+            # even when summary query returned no matches (profile/summary miss case)
+            content_filters: List[Dict[str, Any]] = [
+                {"chunk_type": "content"},
+                {"doc_id": {"$in": doc_ids}},
+            ]
+            if knowledge_base_id:
+                content_filters.insert(1, {"knowledge_base_id": knowledge_base_id})
+            content_where = {"$and": content_filters}
+            chunks_result = self.storage.query_collection(
+                query_embeddings=[query_embedding],
+                n_results=top_k_chunks,
+                where=content_where,
+                collection_name=collection_name,
+            )
         else:
             chunks_result = {"documents": [[]], "metadatas": [[]]}
 

@@ -276,7 +276,8 @@ class Orchestrator:
                       doc_ids: Optional[List[str]] = None,
                       mentioned_doc_ids: Optional[List[str]] = None,
                       conversation_history: Optional[List[Dict]] = None,
-                      top_k_docs: int = 3, top_k_chunks: int = 5) -> Dict[str, Any]:
+                      top_k_docs: int = 3, top_k_chunks: int = 5,
+                      collection_names: Optional[List[str]] = None) -> Dict[str, Any]:
         if not self.retriever:
             raise ValueError("RAG retriever not configured")
 
@@ -319,6 +320,7 @@ class Orchestrator:
             doc_ids=policy.retrieval_scope.doc_ids,
             top_k_docs=policy.limits.top_k_docs,
             top_k_chunks=policy.limits.top_k_chunks,
+            collection_names=collection_names,
         )
 
         # --- Phase 3: Finalize policy based on retrieval quality ---

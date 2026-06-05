@@ -596,3 +596,44 @@ def test_strict_doc_ids_scope_filters_correctly():
     # Summary filter should include doc_id $in filter
     summary_where = storage.where_filters[0]
     assert {"doc_id": {"$in": ["doc-1", "doc-2"]}} in summary_where["$and"]
+
+
+class EmptySummaryStorage:
+    """Fake storage that returns no summary results but has content matches."""
+
+    def __init__(self):
+        self.where_filters = []
+        self.content_calls = 0
+
+    def query_collection(self, query_embeddings, n_results, where=None, collection_name=None):
+        self.where_filters.append(where)
+        if where and where.get("chunk_type") == "summary":
+            return {"documents": [[]], "metadatas": [[]], "distances": [[]]}
+        self.content_calls += 1
+        return {
+            "documents": [["actual content chunk about the topic"]],
+            "metadatas": [[{"doc_id": "doc-strict", "file_name": "paper.pdf", "chunk_type": "content"}]],
+            "distances": [[0.3]],
+        }
+
+
+def test_strict_doc_ids_fallback_queries_content_when_summary_misses():
+    """When doc_ids provided but summary returns nothing, content chunks are still retrieved."""
+    storage = EmptySummaryStorage()
+    retriever = RAGRetriever(storage, FixedEmbeddingForSourceRef())
+
+    # Provide doc_ids (strict scope) but summary returns empty
+    result = retriever.retrieve(
+        "question",
+        doc_ids=["doc-strict"],
+        top_k_docs=3,
+        top_k_chunks=5,
+    )
+
+    # Should have retrieved content chunks via the fallback path
+    assert storage.content_calls > 0
+    assert len(result.chunks) > 0
+    assert result.chunks[0] == "actual content chunk about the topic"
+    # Content chunks should be in source_refs
+    content_refs = [r for r in result.source_refs if r["chunk_type"] == "content"]
+    assert len(content_refs) > 0
