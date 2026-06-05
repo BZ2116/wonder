@@ -13,6 +13,8 @@ function createMockStorage(overrides: Record<string, unknown> = {}) {
     deleteQASession: vi.fn(),
     addQAMessage: vi.fn(),
     getQAMessagesBySessionId: vi.fn(() => []),
+    listDocuments: vi.fn(() => []),
+    getVectorIndexesForKnowledgeBase: vi.fn(() => []),
     ...overrides,
   }
 }
@@ -511,6 +513,33 @@ describe('qaRoutes', () => {
 
     const callArg = (python.post as any).mock.calls[0][1]
     expect(callArg.mentioned_doc_ids).toBeUndefined()
+  })
+
+  it('passes indexed collection names for mentioned documents', async () => {
+    const storage = createMockStorage({
+      getQASession: vi.fn(() => ({
+        id: 's1', title: 'Test', scope_type: 'knowledge_base', scope_ids: '["kb1"]',
+        created_at: '2024-01-01', updated_at: '2024-01-01',
+      })),
+      getKnowledgeBase: vi.fn(() => ({ id: 'kb1', readme: '# KB' })),
+      getQAMessagesBySessionId: vi.fn(() => []),
+      listDocuments: vi.fn(() => [{ id: 'doc-1' }]),
+      getVectorIndexesForKnowledgeBase: vi.fn(() => [
+        { document_id: 'doc-1', collection_name: 'documents__configured', status: 'indexed' },
+        { document_id: 'doc-2', collection_name: 'documents__other', status: 'indexed' },
+      ]),
+    })
+    const python = createMockPython()
+    const app = new Hono()
+    app.route('/api/qa', qaRoutes(storage as any, python as any))
+
+    await app.request('/api/qa/sessions/s1/messages', {
+      method: 'POST',
+      body: JSON.stringify({ question: '这篇论文主要改进是什么？', mentionedDocIds: ['doc-1'] }),
+      headers: { 'Content-Type': 'application/json' },
+    })
+
+    expect((python.post as any).mock.calls[0][1].collection_names).toEqual(['documents__configured'])
   })
 
   it('sources persist with both existing and new response fields', async () => {

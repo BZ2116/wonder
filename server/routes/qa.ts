@@ -20,6 +20,10 @@ interface PythonQAResponse {
   }>
 }
 
+function uniqueStrings(values: Array<string | null | undefined>): string[] {
+  return Array.from(new Set(values.filter((v): v is string => Boolean(v))))
+}
+
 export function qaRoutes(storage: StorageService, python: PythonBackendClient) {
   const app = new Hono()
 
@@ -133,6 +137,20 @@ export function qaRoutes(storage: StorageService, python: PythonBackendClient) {
     if (body.mentionedDocIds && body.mentionedDocIds.length > 0) {
       pythonBody.mentioned_doc_ids = body.mentionedDocIds
       pythonBody.doc_ids = body.mentionedDocIds
+    }
+
+    // Resolve indexed collection names for knowledge-base scoped sessions
+    const kbId = session.scope_type === 'knowledge_base' && scopeIds.length > 0 ? scopeIds[0] : undefined
+    if (kbId) {
+      const kbCollectionIndexes = storage.getVectorIndexesForKnowledgeBase(kbId, 'indexed')
+      const mentionedSet = new Set(mentionedDocIds)
+      const relevantIndexes = mentionedDocIds.length > 0
+        ? kbCollectionIndexes.filter(idx => mentionedSet.has(idx.document_id))
+        : kbCollectionIndexes
+      const collectionNames = uniqueStrings(relevantIndexes.map(idx => idx.collection_name))
+      if (collectionNames.length > 0) {
+        pythonBody.collection_names = collectionNames
+      }
     }
 
     // Build conversation history (last 10 messages)
