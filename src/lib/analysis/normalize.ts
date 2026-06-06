@@ -71,6 +71,11 @@ export function normalizeAnalysisResult(input: unknown): AnalysisResult | null {
       todoList: asString(raw.todo_list) || asString(lit.todoList) || undefined,
       matchScore: asNumber(lit.matchScore),
       matchReason: asString(lit.matchReason) || undefined,
+      decisionBrief: normalizeDecisionBrief(raw.decisionBrief) || normalizeDecisionBrief(raw.decision_brief),
+      focusedSignals: normalizeFocusedSignals(raw.focusedSignals) || normalizeFocusedSignals(raw.focused_signals),
+      knowledgeIncrementScore: asNumber(raw.knowledgeIncrementScore) ?? asNumber(raw.knowledge_increment_score),
+      evidenceStrengthScore: asNumber(raw.evidenceStrengthScore) ?? asNumber(raw.evidence_strength_score),
+      actionabilityScore: asNumber(raw.actionabilityScore) ?? asNumber(raw.actionability_score),
     }
   }
 
@@ -108,6 +113,11 @@ export function normalizeAnalysisResult(input: unknown): AnalysisResult | null {
     readmeUpdateSuggestions: normalizeReadmeSuggestions(raw.readmeUpdateSuggestions)
       || normalizeReadmeSuggestions(raw.readme_suggestions),
     writingAssets: normalizeWritingAssets(raw.writingAssets) || normalizeWritingAssets(raw.writing_assets),
+    decisionBrief: normalizeDecisionBrief(raw.decisionBrief) || normalizeDecisionBrief(raw.decision_brief),
+    focusedSignals: normalizeFocusedSignals(raw.focusedSignals) || normalizeFocusedSignals(raw.focused_signals),
+    knowledgeIncrementScore: asNumber(raw.knowledgeIncrementScore) ?? asNumber(raw.knowledge_increment_score),
+    evidenceStrengthScore: asNumber(raw.evidenceStrengthScore) ?? asNumber(raw.evidence_strength_score),
+    actionabilityScore: asNumber(raw.actionabilityScore) ?? asNumber(raw.actionability_score),
   }
 }
 
@@ -130,6 +140,39 @@ function normalizePlacement(raw: unknown): AnalysisResult['suggestedPlacement'] 
     subDirection: asString(raw.sub_direction ?? raw.subDirection),
     tags: asStringArray(raw.tags),
   }
+}
+
+function normalizeDecisionBrief(raw: unknown): AnalysisResult['decisionBrief'] | undefined {
+  if (!isObject(raw)) return undefined
+  const verdict = asString(raw.verdict)
+  const bestUse = asString(raw.best_use ?? raw.bestUse)
+  if (!verdict || !bestUse) return undefined
+  return {
+    verdict: verdict as NonNullable<AnalysisResult['decisionBrief']>['verdict'],
+    confidence: asNumber(raw.confidence),
+    bestUse: bestUse as NonNullable<AnalysisResult['decisionBrief']>['bestUse'],
+    whyItMatters: asStringArray(raw.why_it_matters ?? raw.whyItMatters),
+    keyTakeaways: asStringArray(raw.key_takeaways ?? raw.keyTakeaways),
+    noveltyPoints: asStringArray(raw.novelty_points ?? raw.noveltyPoints),
+    overlapPoints: asStringArray(raw.overlap_points ?? raw.overlapPoints),
+    conflictOrRiskPoints: asStringArray(raw.conflict_or_risk_points ?? raw.conflictOrRiskPoints),
+    nextAction: asString(raw.next_action ?? raw.nextAction),
+  }
+}
+
+function normalizeFocusedSignals(raw: unknown): AnalysisResult['focusedSignals'] | undefined {
+  if (!Array.isArray(raw)) return undefined
+  const signals = raw
+    .filter(isObject)
+    .map(item => ({
+      text: asString(item.text),
+      signalType: asString(item.signal_type ?? item.signalType),
+      sectionType: asString(item.section_type ?? item.sectionType) || 'unknown',
+      chunkIndex: asNumber(item.chunk_index ?? item.chunkIndex),
+      evidenceHint: asString(item.evidence_hint ?? item.evidenceHint) || undefined,
+    }))
+    .filter(item => item.text)
+  return signals.length > 0 ? signals : undefined
 }
 
 function normalizeRelation(raw: unknown): AnalysisResult['relationToExistingDocs'] | undefined {

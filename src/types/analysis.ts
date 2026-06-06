@@ -62,6 +62,35 @@ export interface ReadmeSuggestion {
   created_at: string
 }
 
+export type AnalysisVerdict = 'must_read' | 'deep_read' | 'skim' | 'ignore'
+
+export type AnalysisBestUse =
+  | 'literature_review'
+  | 'method_reference'
+  | 'experiment_baseline'
+  | 'background'
+  | 'not_useful'
+
+export interface DecisionBrief {
+  verdict: AnalysisVerdict
+  confidence?: number
+  bestUse: AnalysisBestUse
+  whyItMatters: string[]
+  keyTakeaways: string[]
+  noveltyPoints: string[]
+  overlapPoints: string[]
+  conflictOrRiskPoints: string[]
+  nextAction: string
+}
+
+export interface FocusedSignal {
+  text: string
+  signalType: string
+  sectionType: string
+  chunkIndex?: number
+  evidenceHint?: string
+}
+
 export interface AnalysisResult {
   summary: string
   paperTitle?: string
@@ -91,6 +120,11 @@ export interface AnalysisResult {
     suggestion: string
     reason: string
   }[]
+  decisionBrief?: DecisionBrief
+  focusedSignals?: FocusedSignal[]
+  knowledgeIncrementScore?: number
+  evidenceStrengthScore?: number
+  actionabilityScore?: number
   // Legacy fields for backward compatibility
   tags?: string[]
   matchScore?: number

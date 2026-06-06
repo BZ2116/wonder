@@ -267,4 +267,81 @@ describe('normalizeAnalysisResult', () => {
       expect(result!.knowledgeBaseFitScore).toBe(1)
     })
   })
+
+  describe('decision brief and focused signals', () => {
+    it('normalizes decision brief and focused signals from snake_case analysis results', () => {
+      const result = normalizeAnalysisResult({
+        summary: 'summary',
+        reading_card: 'card',
+        decision_brief: {
+          verdict: 'deep_read',
+          confidence: 82,
+          best_use: 'method_reference',
+          why_it_matters: ['method matters'],
+          key_takeaways: ['takeaway'],
+          novelty_points: ['novel'],
+          overlap_points: ['overlap'],
+          conflict_or_risk_points: ['risk'],
+          next_action: 'read method section',
+        },
+        focused_signals: [{
+          text: 'Reusable method',
+          signal_type: 'method',
+          section_type: 'method',
+          chunk_index: 1,
+          evidence_hint: 'method module',
+        }],
+        knowledge_increment_score: 74,
+        evidence_strength_score: 68,
+        actionability_score: 88,
+      })
+
+      expect(result?.decisionBrief).toEqual({
+        verdict: 'deep_read',
+        confidence: 82,
+        bestUse: 'method_reference',
+        whyItMatters: ['method matters'],
+        keyTakeaways: ['takeaway'],
+        noveltyPoints: ['novel'],
+        overlapPoints: ['overlap'],
+        conflictOrRiskPoints: ['risk'],
+        nextAction: 'read method section',
+      })
+      expect(result?.focusedSignals).toEqual([{
+        text: 'Reusable method',
+        signalType: 'method',
+        sectionType: 'method',
+        chunkIndex: 1,
+        evidenceHint: 'method module',
+      }])
+      expect(result?.knowledgeIncrementScore).toBe(74)
+      expect(result?.evidenceStrengthScore).toBe(68)
+      expect(result?.actionabilityScore).toBe(88)
+    })
+
+    it('normalizes decision brief from camelCase SSE results', () => {
+      const result = normalizeAnalysisResult({
+        summary: 'summary',
+        readingCard: 'card',
+        decisionBrief: {
+          verdict: 'skim',
+          confidence: 55,
+          bestUse: 'background',
+          whyItMatters: ['background only'],
+          keyTakeaways: [],
+          noveltyPoints: [],
+          overlapPoints: ['already covered'],
+          conflictOrRiskPoints: [],
+          nextAction: 'record short note',
+        },
+        knowledgeIncrementScore: 25,
+        evidenceStrengthScore: 40,
+        actionabilityScore: 50,
+      })
+
+      expect(result?.decisionBrief?.verdict).toBe('skim')
+      expect(result?.decisionBrief?.bestUse).toBe('background')
+      expect(result?.knowledgeIncrementScore).toBe(25)
+    })
+  })
 })
