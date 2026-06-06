@@ -41,6 +41,27 @@ function createSSEApp() {
           recommended_action: 'add',
           readme_suggestions: [{ section: 'Core Keywords', suggestion: 'Add NLP', reason: 'relevant' }],
           source_chunks: ['chunk1'],
+          decision_brief: {
+            verdict: 'deep_read',
+            confidence: 81,
+            best_use: 'method_reference',
+            why_it_matters: ['method useful'],
+            key_takeaways: ['takeaway'],
+            novelty_points: ['novel'],
+            overlap_points: [],
+            conflict_or_risk_points: ['risk'],
+            next_action: 'read method',
+          },
+          focused_signals: [{
+            text: 'method useful',
+            signal_type: 'method',
+            section_type: 'method',
+            chunk_index: 0,
+            evidence_hint: 'method',
+          }],
+          knowledge_increment_score: 73,
+          evidence_strength_score: 69,
+          actionability_score: 86,
         }),
       }
     }),
@@ -99,6 +120,39 @@ describe('analysisRoutes', () => {
     expect(storage.addHistory).toHaveBeenCalledWith(expect.objectContaining({
       documentId: expect.any(String),
     }))
+  })
+
+  it('stores and returns new literature analysis fields', async () => {
+    const { app, storage } = createSSEApp()
+
+    const res = await app.request('/api/analysis/single', {
+      method: 'POST',
+      body: JSON.stringify({
+        fileName: 'paper.pdf',
+        fileType: 'pdf',
+        text: 'Some text.',
+      }),
+      headers: { 'Content-Type': 'application/json' },
+    })
+    const bodyText = await res.text()
+
+    // Extract complete event
+    const completeMatch = bodyText.match(/event: complete\ndata: (.+)/)
+    expect(completeMatch).not.toBeNull()
+    if (completeMatch) {
+      const body = JSON.parse(completeMatch[1])
+      expect(body.result.decisionBrief.verdict).toBe('deep_read')
+      expect(body.result.focusedSignals[0].signalType).toBe('method')
+      expect(body.result.knowledgeIncrementScore).toBe(73)
+      expect(body.result.evidenceStrengthScore).toBe(69)
+      expect(body.result.actionabilityScore).toBe(86)
+    }
+
+    // Verify history JSON includes both snake_case and camelCase variants
+    const historyCall = storage.addHistory.mock.calls[0]
+    const historyJson = JSON.parse(historyCall[0].result)
+    expect(historyJson.decision_brief.verdict).toBe('deep_read')
+    expect(historyJson.decisionBrief.verdict).toBe('deep_read')
   })
 
   it('saves readme suggestions when knowledgeBaseId provided', async () => {

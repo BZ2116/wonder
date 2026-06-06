@@ -49,6 +49,27 @@ interface PythonGatewayResponse {
     possible_literature_review_use: string
     limitations_or_critique: string
   }
+  decision_brief?: {
+    verdict: string
+    confidence?: number
+    best_use: string
+    why_it_matters: string[]
+    key_takeaways: string[]
+    novelty_points: string[]
+    overlap_points: string[]
+    conflict_or_risk_points: string[]
+    next_action: string
+  }
+  focused_signals?: Array<{
+    text: string
+    signal_type: string
+    section_type: string
+    chunk_index?: number
+    evidence_hint?: string
+  }>
+  knowledge_increment_score?: number
+  evidence_strength_score?: number
+  actionability_score?: number
 }
 
 function toPlainString(value: unknown, fallback = ''): string {
@@ -109,6 +130,42 @@ function toWritingAssets(value: unknown): PythonGatewayResponse['writing_assets'
     || assets.possible_literature_review_use
     || assets.limitations_or_critique
   return hasContent ? assets : undefined
+}
+
+function toDecisionBrief(value: unknown): PythonGatewayResponse['decision_brief'] | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined
+  const raw = value as Record<string, unknown>
+  const verdict = toPlainString(raw.verdict).trim()
+  const bestUse = toPlainString(raw.best_use ?? raw.bestUse).trim()
+  if (!verdict || !bestUse) return undefined
+  return {
+    verdict,
+    confidence: typeof raw.confidence === 'number' ? raw.confidence : Number(raw.confidence) || undefined,
+    best_use: bestUse,
+    why_it_matters: toStringArray(raw.why_it_matters ?? raw.whyItMatters),
+    key_takeaways: toStringArray(raw.key_takeaways ?? raw.keyTakeaways),
+    novelty_points: toStringArray(raw.novelty_points ?? raw.noveltyPoints),
+    overlap_points: toStringArray(raw.overlap_points ?? raw.overlapPoints),
+    conflict_or_risk_points: toStringArray(raw.conflict_or_risk_points ?? raw.conflictOrRiskPoints),
+    next_action: toPlainString(raw.next_action ?? raw.nextAction).trim(),
+  }
+}
+
+function toFocusedSignals(value: unknown): NonNullable<PythonGatewayResponse['focused_signals']> {
+  if (!Array.isArray(value)) return []
+  return value
+    .filter(item => item && typeof item === 'object' && !Array.isArray(item))
+    .map(item => {
+      const raw = item as Record<string, unknown>
+      return {
+        text: toPlainString(raw.text).trim(),
+        signal_type: toPlainString(raw.signal_type ?? raw.signalType).trim() || 'unknown',
+        section_type: toPlainString(raw.section_type ?? raw.sectionType).trim() || 'unknown',
+        chunk_index: typeof raw.chunk_index === 'number' ? raw.chunk_index : typeof raw.chunkIndex === 'number' ? raw.chunkIndex : undefined,
+        evidence_hint: toPlainString(raw.evidence_hint ?? raw.evidenceHint).trim() || undefined,
+      }
+    })
+    .filter(item => item.text)
 }
 
 export function analysisRoutes(storage: StorageService, python: PythonBackendClient) {
@@ -225,6 +282,8 @@ export function analysisRoutes(storage: StorageService, python: PythonBackendCli
         const safeReadmeSuggestions = toReadmeSuggestions(result.readme_suggestions)
         const safeSuggestedPlacement = toSuggestedPlacement(result.suggested_placement)
         const safeWritingAssets = toWritingAssets(result.writing_assets)
+        const safeDecisionBrief = toDecisionBrief(result.decision_brief)
+        const safeFocusedSignals = toFocusedSignals(result.focused_signals)
 
         // Step 3: 存储
         await stream.writeSSE({
@@ -336,6 +395,32 @@ export function analysisRoutes(storage: StorageService, python: PythonBackendCli
             possibleLiteratureReviewUse: safeWritingAssets.possible_literature_review_use,
             limitationsOrCritique: safeWritingAssets.limitations_or_critique,
           } : undefined,
+          decision_brief: safeDecisionBrief,
+          decisionBrief: safeDecisionBrief ? {
+            verdict: safeDecisionBrief.verdict,
+            confidence: safeDecisionBrief.confidence,
+            bestUse: safeDecisionBrief.best_use,
+            whyItMatters: safeDecisionBrief.why_it_matters,
+            keyTakeaways: safeDecisionBrief.key_takeaways,
+            noveltyPoints: safeDecisionBrief.novelty_points,
+            overlapPoints: safeDecisionBrief.overlap_points,
+            conflictOrRiskPoints: safeDecisionBrief.conflict_or_risk_points,
+            nextAction: safeDecisionBrief.next_action,
+          } : undefined,
+          focused_signals: safeFocusedSignals,
+          focusedSignals: safeFocusedSignals.map(signal => ({
+            text: signal.text,
+            signalType: signal.signal_type,
+            sectionType: signal.section_type,
+            chunkIndex: signal.chunk_index,
+            evidenceHint: signal.evidence_hint,
+          })),
+          knowledge_increment_score: result.knowledge_increment_score,
+          knowledgeIncrementScore: result.knowledge_increment_score,
+          evidence_strength_score: result.evidence_strength_score,
+          evidenceStrengthScore: result.evidence_strength_score,
+          actionability_score: result.actionability_score,
+          actionabilityScore: result.actionability_score,
           knowledgeBaseId: knowledgeBaseId || null,
           fileName: fileName,
         }
@@ -377,6 +462,27 @@ export function analysisRoutes(storage: StorageService, python: PythonBackendCli
                 possibleLiteratureReviewUse: safeWritingAssets.possible_literature_review_use,
                 limitationsOrCritique: safeWritingAssets.limitations_or_critique,
               } : undefined,
+              decisionBrief: safeDecisionBrief ? {
+                verdict: safeDecisionBrief.verdict,
+                confidence: safeDecisionBrief.confidence,
+                bestUse: safeDecisionBrief.best_use,
+                whyItMatters: safeDecisionBrief.why_it_matters,
+                keyTakeaways: safeDecisionBrief.key_takeaways,
+                noveltyPoints: safeDecisionBrief.novelty_points,
+                overlapPoints: safeDecisionBrief.overlap_points,
+                conflictOrRiskPoints: safeDecisionBrief.conflict_or_risk_points,
+                nextAction: safeDecisionBrief.next_action,
+              } : undefined,
+              focusedSignals: safeFocusedSignals.map(signal => ({
+                text: signal.text,
+                signalType: signal.signal_type,
+                sectionType: signal.section_type,
+                chunkIndex: signal.chunk_index,
+                evidenceHint: signal.evidence_hint,
+              })),
+              knowledgeIncrementScore: result.knowledge_increment_score,
+              evidenceStrengthScore: result.evidence_strength_score,
+              actionabilityScore: result.actionability_score,
             },
           }),
         })
