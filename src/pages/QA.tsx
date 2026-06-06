@@ -193,11 +193,11 @@ export default function QA() {
         <Typography.Text type="secondary">基于知识库的智能研究助手</Typography.Text>
       </div>
 
-      <div style={{ display: 'flex', gap: 16, minHeight: 500 }}>
+      <div style={{ display: 'flex', gap: 16, height: 520 }}>
         {/* Session sidebar */}
         <Card
           size="small"
-          style={{ width: 260, flexShrink: 0 }}
+          style={{ width: 260, flexShrink: 0, display: 'flex', flexDirection: 'column' }}
           title={<span style={{ fontSize: 14 }}>会话列表</span>}
           extra={
             <Button
@@ -207,8 +207,9 @@ export default function QA() {
               onClick={() => setShowNewSession(true)}
             />
           }
-          bodyStyle={{ padding: 0, maxHeight: 460, overflowY: 'auto' }}
+          bodyStyle={{ padding: 0, flex: 1, overflow: 'hidden' }}
         >
+          <div style={{ flex: 1, overflowY: 'auto', maxHeight: 488 }}>
           {sessionsLoading && sessions.length === 0 ? (
             <div style={{ padding: 24, textAlign: 'center', color: 'var(--ink-ghost)' }}>加载中...</div>
           ) : sessions.length === 0 ? (
@@ -255,6 +256,7 @@ export default function QA() {
               )}
             />
           )}
+          </div>
         </Card>
 
         {/* Chat area */}
@@ -276,10 +278,10 @@ export default function QA() {
             </Card>
           ) : (
             <>
-              <Card style={{ flex: 1, marginBottom: 12, display: 'flex', flexDirection: 'column' }}>
+              <Card style={{ flex: 1, marginBottom: 12, display: 'flex', flexDirection: 'column', maxHeight: 520 }}>
                 <div
                   ref={listRef}
-                  style={{ flex: 1, overflowY: 'auto', padding: '4px 0', minHeight: 350 }}
+                  style={{ flex: 1, overflowY: 'auto', padding: '4px 0', minHeight: 350, maxHeight: 460 }}
                 >
                   {messages.length === 0 && (
                     <div style={{ textAlign: 'center', padding: '80px 0', color: 'var(--ink-ghost)' }}>

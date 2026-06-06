@@ -10,6 +10,7 @@ import {
 import { useKnowledgeStore } from '../stores/knowledge'
 import ApiGuard from '../components/ApiGuard'
 import ResearchCardList from '../components/ResearchCardList'
+import { getIndexStatusInfo, getVectorIndexDetailText } from '../lib/knowledge/index-status'
 
 export default function Knowledge() {
   const navigate = useNavigate()
@@ -198,52 +199,56 @@ export default function Knowledge() {
           )}
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+        <div style={{ display: 'flex', gap: 16, marginBottom: 16, alignItems: 'stretch' }}>
           {/* README */}
           <Card
             size="small"
+            style={{ flex: 1, display: 'flex', flexDirection: 'column' }}
             title={<><BookOutlined /> README</>}
             extra={<Button size="small" icon={<EditOutlined />} onClick={() => {
               readmeForm.setFieldsValue({ readme: selectedKB?.readme })
               setEditReadmeOpen(true)
             }}>编辑</Button>}
+            bodyStyle={{ flex: 1, overflow: 'hidden' }}
           >
-            <Typography.Paragraph
-              style={{ whiteSpace: 'pre-wrap', maxHeight: 300, overflow: 'auto', fontSize: 13, marginBottom: 0 }}
-            >
+            <div style={{ flex: 1, overflow: 'auto', whiteSpace: 'pre-wrap', fontSize: 13 }}>
               {selectedKB?.readme || '暂无 README'}
-            </Typography.Paragraph>
+            </div>
           </Card>
 
           {/* README Suggestions */}
           <Card
             size="small"
+            style={{ flex: 1, display: 'flex', flexDirection: 'column', maxHeight: 480 }}
             title={<><SettingOutlined /> README 建议</>}
             extra={readmeSuggestions.length > 0 ? <Tag color="orange">{readmeSuggestions.length}</Tag> : null}
+            bodyStyle={{ flex: 1, overflow: 'hidden' }}
           >
-            {readmeSuggestions.length === 0 ? (
-              <Empty description="暂无待处理的建议" image={Empty.PRESENTED_IMAGE_SIMPLE} />
-            ) : (
-              <List
-                size="small"
-                dataSource={readmeSuggestions as { id: string; section: string; suggestion: string; reason: string }[]}
-                renderItem={item => (
-                  <List.Item
-                    actions={[
-                      <Button key="accept" type="link" size="small" onClick={() => acceptSuggestion(item.id)}>采纳</Button>,
-                      <Button key="reject" type="link" size="small" danger onClick={() => rejectSuggestion(item.id)}>忽略</Button>,
-                    ]}
-                  >
-                    <div>
-                      <Tag color="blue">{item.section}</Tag>
-                      <span>{item.suggestion}</span>
-                      <br />
-                      <Typography.Text type="secondary" style={{ fontSize: 12 }}>{item.reason}</Typography.Text>
-                    </div>
-                  </List.Item>
-                )}
-              />
-            )}
+            <div style={{ flex: 1, overflow: 'auto', maxHeight: 420 }}>
+              {readmeSuggestions.length === 0 ? (
+                <Empty description="暂无待处理的建议" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+              ) : (
+                <List
+                  size="small"
+                  dataSource={readmeSuggestions as { id: string; section: string; suggestion: string; reason: string }[]}
+                  renderItem={item => (
+                    <List.Item
+                      actions={[
+                        <Button key="accept" type="link" size="small" onClick={() => acceptSuggestion(item.id)}>采纳</Button>,
+                        <Button key="reject" type="link" size="small" danger onClick={() => rejectSuggestion(item.id)}>忽略</Button>,
+                      ]}
+                    >
+                      <div>
+                        <Tag color="blue">{item.section}</Tag>
+                        <span>{item.suggestion}</span>
+                        <br />
+                        <Typography.Text type="secondary" style={{ fontSize: 12 }}>{item.reason}</Typography.Text>
+                      </div>
+                    </List.Item>
+                  )}
+                />
+              )}
+            </div>
           </Card>
         </div>
 
@@ -263,7 +268,7 @@ export default function Knowledge() {
           ) : (
             <List
               size="small"
-              dataSource={kbDocuments as { id: string; file_name: string; title?: string | null; summary?: string; fit_score?: number; recommended_action?: string; created_at: string; index_status?: string | null; index_error?: string | null; metadata_status?: string | null; year?: number | null; reading_card?: string | null }[]}
+              dataSource={kbDocuments as { id: string; file_name: string; title?: string | null; summary?: string; fit_score?: number; recommended_action?: string; created_at: string; index_status?: string | null; index_error?: string | null; metadata_status?: string | null; year?: number | null; reading_card?: string | null; collection_name?: string | null; chunk_count?: number | null; embedding_model?: string | null; indexed_at?: string | null }[]}
               renderItem={doc => {
                 const indexStatus = doc.index_status || 'not_indexed'
                 const indexTagMap: Record<string, { color: string; icon: React.ReactNode; label: string }> = {
@@ -272,7 +277,14 @@ export default function Knowledge() {
                   index_failed: { color: 'error', icon: <CloseCircleOutlined />, label: '索引失败' },
                   not_indexed: { color: 'default', icon: <MinusCircleOutlined />, label: '未索引' },
                 }
-                const tagInfo = indexTagMap[indexStatus] || indexTagMap.not_indexed
+                const tagInfo = getIndexStatusInfo(indexStatus)
+                const tagIconMap: Record<typeof tagInfo.kind, React.ReactNode> = {
+                  indexed: <CheckCircleOutlined />,
+                  indexing: <SyncOutlined spin />,
+                  failed: <CloseCircleOutlined />,
+                  stale: <ReloadOutlined />,
+                  not_indexed: <MinusCircleOutlined />,
+                }
 
                 const metadataStatus = doc.metadata_status || 'missing'
                 const metadataTagMap: Record<string, { color: string; label: string }> = {
@@ -299,7 +311,7 @@ export default function Knowledge() {
                         {displayTitle}
                       </Typography.Text>
                       <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 4 }} onClick={e => e.stopPropagation()}>
-                        <Tag color={tagInfo.color} icon={tagInfo.icon}>{tagInfo.label}</Tag>
+                        <Tag color={tagInfo.color} icon={tagIconMap[tagInfo.kind]}>{tagInfo.label}</Tag>
                         {indexStatus !== 'indexing' && selectedKBId && (
                           <Button
                             type="text"
@@ -346,10 +358,18 @@ export default function Knowledge() {
                       {doc.year && <Tag style={{ fontSize: 11 }}>{doc.year}</Tag>}
                       {doc.fit_score != null && <Tag color="blue">匹配 {doc.fit_score}</Tag>}
                       {doc.recommended_action && <Tag style={{ maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{doc.recommended_action}</Tag>}
-                      <Typography.Text type="secondary" style={{ fontSize: 12, marginLeft: 'auto' }}>
+                    </div>
+                    <div style={{ marginTop: 4, display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
+                      <Typography.Text type="secondary" style={{ fontSize: 12 }}>
                         {new Date(doc.created_at).toLocaleDateString('zh-CN')}
                       </Typography.Text>
                     </div>
+                    <Typography.Text
+                      type={tagInfo.kind === 'failed' ? 'danger' : 'secondary'}
+                      style={{ display: 'block', fontSize: 11, marginTop: 4 }}
+                    >
+                      {getVectorIndexDetailText(doc)}
+                    </Typography.Text>
                   </div>
                 </List.Item>
                 )
