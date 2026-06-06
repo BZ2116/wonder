@@ -282,6 +282,13 @@ class RAGRetriever:
                 "chunk_type": meta.get("chunk_type", "summary"),
                 "content": doc,
                 "score": 1 - dist / 2 if dist is not None else None,
+                "paper_title": meta.get("paper_title") or None,
+                "section_type": meta.get("section_type") or None,
+                "section_title": meta.get("section_title") or None,
+                "page_start": meta.get("page_start"),
+                "page_end": meta.get("page_end"),
+                "labels": RAGRetriever._labels_from_meta(meta),
+                "parser": meta.get("parser") or None,
             })
 
         chunk_docs = chunks.get("documents", [[]])[0] if chunks.get("documents") else []
@@ -299,9 +306,23 @@ class RAGRetriever:
                 "chunk_type": meta.get("chunk_type", "content"),
                 "content": doc,
                 "score": 1 - dist / 2 if dist is not None else None,
+                "paper_title": meta.get("paper_title") or None,
+                "section_type": meta.get("section_type") or None,
+                "section_title": meta.get("section_title") or None,
+                "page_start": meta.get("page_start"),
+                "page_end": meta.get("page_end"),
+                "labels": RAGRetriever._labels_from_meta(meta),
+                "parser": meta.get("parser") or None,
             })
 
         return refs
+
+    @staticmethod
+    def _labels_from_meta(meta: Dict[str, Any]) -> list[str]:
+        raw = meta.get("labels") or ""
+        if isinstance(raw, list):
+            return [str(item).strip() for item in raw if str(item).strip()]
+        return [part.strip() for part in str(raw).split(",") if part.strip()]
 
     @staticmethod
     def _dedupe_refs(refs: List[dict]) -> List[dict]:

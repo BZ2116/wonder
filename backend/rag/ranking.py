@@ -57,6 +57,13 @@ def page_span(meta: dict) -> str:
     return str(start) if start == end else f"{start}-{end}"
 
 
+def _labels_from_meta(meta: dict) -> list[str]:
+    raw = meta.get("labels") or ""
+    if isinstance(raw, list):
+        return [str(item).strip() for item in raw if str(item).strip()]
+    return [part.strip() for part in str(raw).split(",") if part.strip()]
+
+
 def build_evidence_pack(
     candidates: list[RetrievalCandidate],
     *,
@@ -97,6 +104,9 @@ def build_evidence_pack(
             "section_title": meta.get("section_title", ""),
             "page_start": meta.get("page_start"),
             "page_end": meta.get("page_end"),
+            "paper_title": meta.get("paper_title") or None,
+            "labels": _labels_from_meta(meta),
+            "parser": meta.get("parser") or None,
         })
     parts.append("\n\n".join(evidence_parts))
     return "\n\n---\n\n".join(parts), refs

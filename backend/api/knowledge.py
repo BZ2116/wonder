@@ -162,10 +162,14 @@ async def index_gateway_document(request: KnowledgeIndexRequest):
                     chunk_id=pc.chunk_id,
                     text=pc.text,
                     chunk_index=pc.chunk_index,
+                    chunk_type=pc.chunk_type,
                     section_type=pc.section_type,
                     section_title=pc.section_title,
                     page_start=pc.page_start,
                     page_end=pc.page_end,
+                    labels=pc.labels,
+                    parser=pc.parser,
+                    parser_version=pc.parser_version,
                     is_reference=pc.is_reference,
                     prev_chunk_id=pc.prev_chunk_id,
                     next_chunk_id=pc.next_chunk_id,
@@ -216,6 +220,7 @@ async def ask_question(request: KnowledgeQARequest):
             top_k_docs=request.top_k_docs,
             top_k_chunks=request.top_k_chunks,
             conversation_history=request.conversation_history,
+            collection_names=request.collection_names,
         )
         # Build SourceRef list from raw dicts
         source_refs = None
@@ -224,12 +229,13 @@ async def ask_question(request: KnowledgeQARequest):
             source_refs = [SourceRef(**ref) for ref in raw_refs]
 
         return KnowledgeQAResponse(
-            answer=result["answer"],
-            source_doc_ids=result["source_doc_ids"],
-            source_chunks=result["source_chunks"],
-            answer_mode=result.get("answer_mode"),
-            source_refs=source_refs,
-        )
+        answer=result["answer"],
+        source_doc_ids=result["source_doc_ids"],
+        source_chunks=result["source_chunks"],
+        answer_mode=result.get("answer_mode"),
+        source_refs=source_refs,
+        evidence_status=result.get("evidence_status"),
+    )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

@@ -145,7 +145,6 @@ class DocumentIndexer:
                     "knowledge_base_id": knowledge_base_id,
                     "file_name": file_name,
                     "paper_title": paper_title or "",
-                    "chunk_type": "content",
                     "tags": ",".join(tags),
                     "created_at": created_at,
                     "index_id": index_id or "",

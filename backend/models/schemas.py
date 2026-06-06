@@ -159,6 +159,9 @@ class SourceRef(BaseModel):
     section_title: Optional[str] = None
     page_start: Optional[int] = None
     page_end: Optional[int] = None
+    paper_title: Optional[str] = None
+    labels: List[str] = []
+    parser: Optional[str] = None
 
 
 class KnowledgeQAResponse(BaseModel):
@@ -232,6 +235,7 @@ class PaperChunkInput(BaseModel):
     chunk_id: str = Field(alias="chunkId")
     text: str
     chunk_index: int = Field(alias="chunkIndex")
+    chunk_type: str = Field(default="content", alias="chunkType")
     section_type: str = Field(default="unknown", alias="sectionType")
     section_title: str = Field(default="", alias="sectionTitle")
     page_start: int = Field(default=0, alias="pageStart")
@@ -240,6 +244,9 @@ class PaperChunkInput(BaseModel):
     prev_chunk_id: Optional[str] = Field(default=None, alias="prevChunkId")
     next_chunk_id: Optional[str] = Field(default=None, alias="nextChunkId")
     block_types: List[str] = Field(default_factory=list, alias="blockTypes")
+    labels: List[str] = Field(default_factory=list)
+    parser: str = "pypdf"
+    parser_version: Optional[str] = Field(default=None, alias="parserVersion")
 
 
 class KnowledgeIndexRequest(BaseModel):

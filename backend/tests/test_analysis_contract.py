@@ -163,3 +163,34 @@ def test_readme_advisor_rejects_invalid_body():
     client = TestClient(app)
     res = client.post("/api/readme-advisor/generate", json={"invalid_field": 123})
     assert res.status_code == 422
+
+
+def test_knowledge_index_request_accepts_structured_paper_chunk_fields():
+    req = KnowledgeIndexRequest.model_validate({
+        "doc_id": "doc-1",
+        "knowledge_base_id": "kb-1",
+        "file_name": "paper.pdf",
+        "chunks": [],
+        "summary": "summary",
+        "analysis_result": {},
+        "paperChunks": [{
+            "chunkId": "chunk-method-1",
+            "text": "method text",
+            "chunkIndex": 0,
+            "chunkType": "formula",
+            "sectionType": "method",
+            "sectionTitle": "2 Method",
+            "pageStart": 2,
+            "pageEnd": 3,
+            "labels": ["Eq. (8)"],
+            "parser": "mineru_precision",
+            "parserVersion": "vlm",
+            "blockTypes": ["formula"],
+        }],
+    })
+
+    chunk = req.paper_chunks[0]
+    assert chunk.chunk_type == "formula"
+    assert chunk.labels == ["Eq. (8)"]
+    assert chunk.parser == "mineru_precision"
+    assert chunk.parser_version == "vlm"

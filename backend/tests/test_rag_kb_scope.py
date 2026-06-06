@@ -576,18 +576,56 @@ def test_retriever_computes_retrieval_confidence():
 
 
 def test_retriever_retrieval_confidence_zero_when_no_summaries():
+    """When both summaries and content are empty, confidence is 0.0."""
     storage = SourceRefStorage(
         summary_results={"documents": [[]], "metadatas": [[]], "distances": [[]]},
         chunk_results={
-            "documents": [["chunk"]],
-            "metadatas": [[{"doc_id": "doc-1", "file_name": "a.pdf"}]],
-            "distances": [[0.3]],
+            "documents": [[]],
+            "metadatas": [[]],
+            "distances": [[]],
         },
     )
     retriever = RAGRetriever(storage, FixedEmbeddingForSourceRef())
 
     result = retriever.retrieve("question")
     assert result.retrieval_confidence == 0.0
+
+
+def test_retriever_retrieval_confidence_fallback_to_candidate_scores():
+    """When summaries are absent but content candidates exist, use candidate averaging fallback."""
+    class CandidateAveragingStorage:
+        """Storage that returns empty summaries but valid content candidates."""
+
+        def __init__(self):
+            self.where_filters = []
+
+        def query_collection(self, query_embeddings, n_results, where=None, collection_name=None):
+            self.where_filters.append(where)
+            if where and where.get("chunk_type") == "summary":
+                return {"documents": [[]], "metadatas": [[]], "distances": [[]]}
+            # Return non-reference content chunks that will become ranked_candidates
+            # Format: documents[0] = list of all docs, distances[0] = list of all distances
+            return {
+                "documents": [["content chunk alpha", "content chunk beta"]],
+                "metadatas": [[
+                    {"doc_id": "doc-1", "file_name": "a.pdf", "chunk_type": "content"},
+                    {"doc_id": "doc-1", "file_name": "a.pdf", "chunk_type": "content"},
+                ]],
+                "distances": [[0.2, 0.6]],
+            }
+
+    storage = CandidateAveragingStorage()
+    retriever = RAGRetriever(storage, FixedEmbeddingForSourceRef())
+
+    # Must provide knowledge_base_id to trigger content query path when summaries are empty
+    result = retriever.retrieve("question", knowledge_base_id="kb-1")
+
+    # dense_score = 1 - distance/2
+    # chunk alpha: 1 - 0.2/2 = 0.9 -> final = 0.55*0.9 = 0.495
+    # chunk beta: 1 - 0.6/2 = 0.7 -> final = 0.55*0.7 = 0.385
+    # average = (0.495 + 0.385) / 2 = 0.44
+    assert result.retrieval_confidence == pytest.approx(0.44, rel=0.01)
+    assert result.retrieval_confidence > 0
 
 
 def test_strict_doc_ids_scope_filters_correctly():
@@ -680,24 +718,104 @@ def test_retriever_direct_content_recall_without_summary_match():
 
 
 def test_retriever_excludes_reference_chunks_from_evidence_pack():
-    storage = SourceRefStorage(
+    """Reference chunks must not appear in the evidence pack with [SN] markers."""
+    class ReferenceChunkStorage:
+        def __init__(self):
+            self.where_filters = []
+
+        def query_collection(self, query_embeddings, n_results, where=None, collection_name=None):
+            self.where_filters.append(where)
+            if where and where.get("chunk_type") == "summary":
+                return {"documents": [[]], "metadatas": [[]], "distances": [[]]}
+            # Return both a regular content chunk and a reference chunk
+            # Format: documents[0] = list of all docs, distances[0] = list of all distances
+            return {
+                "documents": [["regular content about the method", "[1] Smith et al. - A referenced paper"]],
+                "metadatas": [[
+                    {
+                        "doc_id": "doc-1",
+                        "file_name": "paper.pdf",
+                        "chunk_id": "chunk-1",
+                        "chunk_type": "content",
+                        "section_type": "method",
+                        "is_reference": False,
+                    },
+                    {
+                        "doc_id": "doc-1",
+                        "file_name": "paper.pdf",
+                        "chunk_id": "ref-1",
+                        "chunk_type": "content",
+                        "section_type": "references",
+                        "is_reference": True,
+                    },
+                ]],
+                "distances": [[0.2, 0.1]],
+            }
+
+    storage = ReferenceChunkStorage()
+    retriever = RAGRetriever(storage, FixedEmbeddingForSourceRef())
+
+    # Must provide knowledge_base_id to trigger content query path when summaries are empty
+    result = retriever.retrieve("What does the paper prove?", knowledge_base_id="kb-1")
+
+    # Regular content chunk should appear in source_refs (filtered by is_reference in _result_to_candidates)
+    content_refs = [r for r in result.source_refs if r["chunk_type"] == "content"]
+    assert len(content_refs) > 0, "Regular content chunk should be in source_refs"
+
+    # Evidence pack should contain [S1] marker for regular content
+    assert "[S1]" in result.context
+
+    # Evidence pack should NOT contain reference content (filtered by _result_to_candidates)
+    assert "[1] Smith et al" not in result.context
+
+
+def test_retriever_source_refs_include_structured_paper_metadata():
+    class QueryStorage:
+        """Storage that returns configurable results for structured metadata tests."""
+        def __init__(self, summary_results=None, chunk_results=None):
+            self._summary_results = summary_results or {
+                "documents": [[]], "metadatas": [[]], "distances": [[]]
+            }
+            self._chunk_results = chunk_results or {
+                "documents": [[]], "metadatas": [[]], "distances": [[]]
+            }
+            self.where_filters = []
+
+        def query_collection(self, query_embeddings, n_results, where=None, collection_name=None):
+            self.where_filters.append(where)
+            if where and where.get("chunk_type") == "summary":
+                return self._summary_results
+            return self._chunk_results
+
+    storage = QueryStorage(
         summary_results={"documents": [[]], "metadatas": [[]], "distances": [[]]},
         chunk_results={
-            "documents": [["[1] A reference entry"]],
+            "documents": [["Title: Paper\nSection: 2 Method\nPages: 2-3\n\nmethod text"]],
             "metadatas": [[{
                 "doc_id": "doc-1",
                 "file_name": "paper.pdf",
-                "chunk_id": "ref-1",
+                "paper_title": "Paper",
+                "chunk_id": "chunk-method-1",
+                "chunk_index": 0,
                 "chunk_type": "content",
-                "section_type": "references",
-                "is_reference": True,
+                "section_type": "method",
+                "section_title": "2 Method",
+                "page_start": 2,
+                "page_end": 3,
+                "labels": "Eq. (8),Figure 4",
+                "parser": "mineru_precision",
             }]],
-            "distances": [[0.1]],
+            "distances": [[0.2]],
         },
     )
-    retriever = RAGRetriever(storage, FixedEmbeddingForSourceRef())
+    retriever = RAGRetriever(storage, FakeQueryEmbedding())
 
-    result = retriever.retrieve("What does the paper prove?")
+    result = retriever.retrieve("方法是什么？", knowledge_base_id="kb-1", top_k_chunks=1)
 
-    assert result.source_refs == []
-    assert "[S1]" not in result.context
+    ref = next(ref for ref in result.source_refs if ref["chunk_type"] == "content")
+    assert ref["paper_title"] == "Paper"
+    assert ref["section_title"] == "2 Method"
+    assert ref["page_start"] == 2
+    assert ref["page_end"] == 3
+    assert ref["labels"] == ["Eq. (8)", "Figure 4"]
+    assert ref["parser"] == "mineru_precision"
