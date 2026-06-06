@@ -2,6 +2,13 @@ from typing import List, Optional, Dict, Any
 from dataclasses import dataclass
 from backend.core.embedding import EmbeddingClient
 from backend.core.storage import StorageManager
+from backend.rag.paper_types import RetrievalCandidate
+from backend.rag.ranking import (
+    build_evidence_pack,
+    lexical_score,
+    rerank_candidates,
+    section_intent_score,
+)
 
 
 @dataclass
@@ -22,6 +29,36 @@ class RAGRetriever:
     def __init__(self, storage: StorageManager, embedding: EmbeddingClient):
         self.storage = storage
         self.embedding = embedding
+
+    @staticmethod
+    def _score_from_distance(distance: float | None) -> float:
+        return 1 - distance / 2 if distance is not None else 0.0
+
+    def _result_to_candidates(self, query: str, result: Dict) -> List[RetrievalCandidate]:
+        docs = result.get("documents", [[]])[0] if result.get("documents") else []
+        metas = result.get("metadatas", [[]])[0] if result.get("metadatas") else []
+        dists = result.get("distances", [[]])[0] if result.get("distances") else []
+        candidates = []
+        for i, doc in enumerate(docs):
+            meta = metas[i] if i < len(metas) else {}
+            if meta.get("is_reference") is True or meta.get("section_type") == "references":
+                continue
+            dense = self._score_from_distance(dists[i] if i < len(dists) else None)
+            candidates.append(RetrievalCandidate(
+                doc_id=meta.get("doc_id", ""),
+                file_name=meta.get("file_name", "unknown"),
+                content=doc,
+                metadata=meta,
+                dense_score=dense,
+                lexical_score=lexical_score(query, " ".join([
+                    meta.get("paper_title", ""),
+                    meta.get("section_title", ""),
+                    doc,
+                ])),
+                section_intent_score=section_intent_score(query, meta),
+                metadata_score=0.1 if meta.get("paper_title") else 0.0,
+            ))
+        return candidates
 
     def _query_single_collection(
         self,
@@ -73,6 +110,20 @@ class RAGRetriever:
             ]
             if knowledge_base_id:
                 content_filters.insert(1, {"knowledge_base_id": knowledge_base_id})
+            content_where = {"$and": content_filters}
+            chunks_result = self.storage.query_collection(
+                query_embeddings=[query_embedding],
+                n_results=top_k_chunks,
+                where=content_where,
+                collection_name=collection_name,
+            )
+        elif knowledge_base_id:
+            # Knowledge-base only fallback: query content by knowledge_base_id when
+            # no summary matches and no doc_ids provided (direct content recall)
+            content_filters: List[Dict[str, Any]] = [
+                {"chunk_type": "content"},
+                {"knowledge_base_id": knowledge_base_id},
+            ]
             content_where = {"$and": content_filters}
             chunks_result = self.storage.query_collection(
                 query_embeddings=[query_embedding],
@@ -166,10 +217,27 @@ class RAGRetriever:
                 top_k_docs, top_k_chunks,
             )
 
-        context = self._build_context(summaries_result, chunks_result, max_context_tokens)
+        # Build ranked candidates using hybrid scoring
+        candidates = self._result_to_candidates(query, chunks_result)
+        ranked_candidates = rerank_candidates(candidates)[:top_k_chunks]
 
-        # Build structured source_refs
-        source_refs = self._dedupe_refs(self._build_source_refs(summaries_result, chunks_result))
+        if ranked_candidates:
+            context, evidence_refs = build_evidence_pack(
+                ranked_candidates,
+                max_chars=max_context_tokens,
+            )
+            source_refs = self._dedupe_refs(
+                evidence_refs + self._build_source_refs(
+                    summaries_result,
+                    {"documents": [[]], "metadatas": [[]], "distances": [[]]},
+                )
+            )
+            chunks = [candidate.content for candidate in ranked_candidates]
+        else:
+            # Fallback to legacy context building when no candidates
+            context = self._build_context(summaries_result, chunks_result, max_context_tokens)
+            source_refs = self._dedupe_refs(self._build_source_refs(summaries_result, chunks_result))
+            chunks = chunks_result.get("documents", [[]])[0] if chunks_result.get("documents") else []
 
         # Compute retrieval_confidence as average score of summary refs
         summary_scores = [
@@ -180,7 +248,7 @@ class RAGRetriever:
 
         return RetrievalResult(
             summaries=summaries_result.get("documents", [[]])[0] if summaries_result.get("documents") else [],
-            chunks=chunks_result.get("documents", [[]])[0] if chunks_result.get("documents") else [],
+            chunks=chunks,
             context=context,
             source_doc_ids=matched_doc_ids,
             source_refs=source_refs,

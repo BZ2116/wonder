@@ -516,13 +516,17 @@ def test_retriever_returns_source_refs_with_metadata_and_scores():
     result = retriever.retrieve("question")
 
     assert len(result.source_refs) > 0
+    # With hybrid flow, content (evidence) refs come first, summary refs appended after
     ref = result.source_refs[0]
     assert ref["doc_id"] == "doc-1"
     assert ref["file_name"] == "paper_a.pdf"
-    assert ref["chunk_type"] == "summary"
-    assert ref["content"] == "summary of paper A"
+    assert ref["chunk_type"] == "content"
+    assert ref["content"] == "detailed content about X"
     assert ref["score"] is not None
-    assert ref["score"] == pytest.approx(1 - 0.2 / 2)  # 0.9
+    # Summary ref should be present and appended after content refs
+    summary_refs = [r for r in result.source_refs if r["chunk_type"] == "summary"]
+    assert len(summary_refs) >= 1
+    assert summary_refs[0]["content"] == "summary of paper A"
 
 
 def test_retriever_source_refs_include_chunk_metadata():
@@ -637,3 +641,63 @@ def test_strict_doc_ids_fallback_queries_content_when_summary_misses():
     # Content chunks should be in source_refs
     content_refs = [r for r in result.source_refs if r["chunk_type"] == "content"]
     assert len(content_refs) > 0
+
+
+def test_retriever_direct_content_recall_without_summary_match():
+    class DirectContentStorage:
+        def __init__(self):
+            self.calls = []
+
+        def query_collection(self, query_embeddings, n_results, where=None, collection_name=None):
+            self.calls.append(where)
+            if where and where.get("$and") and {"chunk_type": "summary"} in where["$and"]:
+                return {"documents": [[]], "metadatas": [[]], "distances": [[]]}
+            return {
+                "documents": [["Title: RAG Paper\nSection: 2 Method\nPages: 2\n\nHybrid retrieval method."]],
+                "metadatas": [[{
+                    "doc_id": "doc-1",
+                    "file_name": "paper.pdf",
+                    "paper_title": "RAG Paper",
+                    "chunk_id": "paper-c1",
+                    "chunk_index": 0,
+                    "chunk_type": "content",
+                    "section_type": "method",
+                    "section_title": "2 Method",
+                    "page_start": 2,
+                    "page_end": 2,
+                    "is_reference": False,
+                }]],
+                "distances": [[0.2]],
+            }
+
+    retriever = RAGRetriever(DirectContentStorage(), FixedEmbeddingForSourceRef())
+    result = retriever.retrieve("这个方法怎么设计？", knowledge_base_id="kb-1", top_k_chunks=3)
+
+    assert result.chunks
+    assert result.source_refs[0]["chunk_id"] == "paper-c1"
+    assert result.source_refs[0]["section_type"] == "method"
+    assert "[S1]" in result.context
+
+
+def test_retriever_excludes_reference_chunks_from_evidence_pack():
+    storage = SourceRefStorage(
+        summary_results={"documents": [[]], "metadatas": [[]], "distances": [[]]},
+        chunk_results={
+            "documents": [["[1] A reference entry"]],
+            "metadatas": [[{
+                "doc_id": "doc-1",
+                "file_name": "paper.pdf",
+                "chunk_id": "ref-1",
+                "chunk_type": "content",
+                "section_type": "references",
+                "is_reference": True,
+            }]],
+            "distances": [[0.1]],
+        },
+    )
+    retriever = RAGRetriever(storage, FixedEmbeddingForSourceRef())
+
+    result = retriever.retrieve("What does the paper prove?")
+
+    assert result.source_refs == []
+    assert "[S1]" not in result.context

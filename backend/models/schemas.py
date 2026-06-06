@@ -134,7 +134,7 @@ class SourceRef(BaseModel):
     file_name: str
     chunk_id: Optional[str] = None
     chunk_index: Optional[int] = None
-    chunk_type: Literal["summary", "content", "card", "profile"] = "content"
+    chunk_type: Literal["summary", "content", "card", "profile", "reference"] = "content"
     content: str
     score: Optional[float] = None
     # Card-specific fields (optional, only present when chunk_type == "card")
@@ -143,6 +143,12 @@ class SourceRef(BaseModel):
     linked_doc_ids: Optional[str] = None
     knowledge_type: Optional[str] = None
     tags: Optional[str] = None
+    # Extended metadata for paper retrieval
+    source_id: Optional[str] = None
+    section_type: Optional[str] = None
+    section_title: Optional[str] = None
+    page_start: Optional[int] = None
+    page_end: Optional[int] = None
 
 
 class KnowledgeQAResponse(BaseModel):
@@ -284,10 +290,16 @@ class ResearchCardSourceRef(BaseModel):
     file_name: Optional[str] = ""
     chunk_id: Optional[str] = None
     chunk_index: Optional[int] = None
-    chunk_type: Literal["summary", "content", "card", "profile"] = "content"
+    chunk_type: Literal["summary", "content", "card", "profile", "reference"] = "content"
     content: str = ""
     snippet: Optional[str] = None
     score: Optional[float] = None
+    # Extended metadata for paper retrieval
+    source_id: Optional[str] = None
+    section_type: Optional[str] = None
+    section_title: Optional[str] = None
+    page_start: Optional[int] = None
+    page_end: Optional[int] = None
 
 
 class ResearchCardDraftRequest(BaseModel):
