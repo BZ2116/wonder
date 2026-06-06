@@ -13,14 +13,15 @@ from backend.rag.retriever import RAGRetriever
 
 
 def classify_evidence(refs: list[dict]) -> Literal["none", "weak", "reliable"]:
-    """Classify evidence status from source refs, excluding README/profile background."""
-    non_readme_refs = [
+    paper_refs = [
         ref for ref in refs
-        if ref.get("chunk_type") in {"card", "profile", "summary", "content"}
+        if ref.get("chunk_type") == "content"
+        and ref.get("section_type") != "references"
+        and not ref.get("is_reference")
     ]
-    if not non_readme_refs:
+    if not paper_refs:
         return "none"
-    best = max((ref.get("score") or 0) for ref in non_readme_refs)
+    best = max((ref.get("score") or 0) for ref in paper_refs)
     if best >= 0.35:
         return "reliable"
     return "weak"

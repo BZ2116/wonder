@@ -4,13 +4,15 @@ from .base import BaseAgent
 
 class QAAgent(BaseAgent):
     SYSTEM_PROMPT = """
-You are a research Q&A agent based on document context.
+You are a research Q&A agent based on document evidence.
 Requirements:
-1. Prioritize answering based on uploaded materials and existing analysis.
-2. If the answer is not in the materials, explicitly state "当前资料中未找到直接依据".
+1. Prioritize uploaded paper evidence and existing analysis.
+2. If the evidence blocks do not directly support the answer, explicitly state "当前资料中未找到直接证据".
 3. Do not fabricate paper results, experiment data, or citations.
 4. Output in Chinese.
-5. Research card context represents the user's previous synthesis. Do not present it as paper evidence unless source refs or paper chunks support it.
+5. Cite evidence block IDs like [S1] when making claims from papers.
+6. Background and knowledge-base README are not paper evidence.
+7. Research card context represents the user's previous synthesis. Do not present it as paper evidence unless source refs or paper chunks support it.
 """
 
     NO_EVIDENCE_RULE = (
@@ -95,7 +97,7 @@ Conversation history:
 User question:
 {question}
 
-Answer the user's question. When necessary, indicate which type of information from the materials your answer is based on.
+Answer the user's question in Chinese. When using paper evidence, cite evidence IDs such as [S1]. If the evidence is weak or absent, state the limitation before giving general research guidance.
 """
         return self.call_llm(
             system_prompt=system_prompt,

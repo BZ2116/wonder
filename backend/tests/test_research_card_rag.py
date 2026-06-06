@@ -348,7 +348,8 @@ class FakingRetriever:
                 "file_name": "paper.pdf",
                 "chunk_id": None,
                 "chunk_index": None,
-                "chunk_type": "summary",
+                "chunk_type": "content",
+                "section_type": "method",
                 "content": "sum",
                 "score": 0.9,
             }],
@@ -389,7 +390,8 @@ def test_orchestrator_includes_card_refs_before_paper_refs():
         "file_name": "paper.pdf",
         "chunk_id": None,
         "chunk_index": None,
-        "chunk_type": "summary",
+        "chunk_type": "content",
+        "section_type": "method",
         "content": "Paper summary",
         "score": 0.9,
     }
@@ -410,7 +412,7 @@ def test_orchestrator_includes_card_refs_before_paper_refs():
     # Card ref should come first
     assert result["source_refs"][0]["chunk_type"] == "card"
     assert result["source_refs"][0]["card_id"] == "card-1"
-    assert result["source_refs"][1]["chunk_type"] == "summary"
+    assert result["source_refs"][1]["chunk_type"] == "content"
 
 
 def test_orchestrator_excludes_low_score_card_refs():
@@ -535,6 +537,56 @@ class CapturingAgent:
     def run(self, **kwargs):
         self.last_evidence_status = kwargs.get("evidence_status")
         return "answer"
+
+
+class FakeRAGRetriever:
+    """Fake RAGRetriever that returns a fixed RetrievalResult."""
+    def __init__(self, result):
+        self._result = result
+
+    def retrieve(self, **kwargs):
+        return self._result
+
+
+def test_orchestrator_passes_structured_evidence_context_to_qa():
+    """QA agent receives document_context with structured evidence IDs like [S1]."""
+    from backend.rag.retriever import RetrievalResult
+
+    class CapturingQA:
+        def __init__(self):
+            self.kwargs = None
+
+        def run(self, **kwargs):
+            self.kwargs = kwargs
+            return "answer [S1]"
+
+    qa = CapturingQA()
+    retriever = FakeRAGRetriever(RetrievalResult(
+        summaries=[],
+        chunks=["chunk"],
+        context="[Evidence]\n[S1] file=paper.pdf title=RAG Paper section=2 Method pages=2 score=0.900\nchunk",
+        source_doc_ids=["doc-1"],
+        source_refs=[{
+            "source_id": "S1",
+            "doc_id": "doc-1",
+            "file_name": "paper.pdf",
+            "chunk_id": "c1",
+            "chunk_type": "content",
+            "content": "chunk",
+            "score": 0.9,
+            "section_type": "method",
+        }],
+    ))
+    orchestrator = Orchestrator(agents={"qa": qa}, retriever=retriever)
+
+    result = orchestrator.route_task(
+        task_type="ask_question",
+        question="方法是什么？",
+        knowledge_base_id="kb-1",
+    )
+
+    assert "[S1]" in qa.kwargs["document_context"]
+    assert result["evidence_status"] == "reliable"
 
 
 def test_readme_only_context_returns_none_evidence():
