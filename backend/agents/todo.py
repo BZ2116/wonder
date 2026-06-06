@@ -12,13 +12,22 @@ Requirements:
 4. Output in Chinese.
 """
 
-    def run(self, reading_card: str, relation_analysis: str) -> str:
+    def run(self, reading_card: str, relation_analysis: str, decision_brief: dict | None = None) -> str:
         user_prompt = f"""
 Material reading card:
 {reading_card}
 
 Project relation analysis:
 {relation_analysis}
+
+Decision brief:
+{decision_brief or {}}
+
+Task policy:
+- must_read: include immediate deep-read tasks.
+- deep_read: include selective reading and validation tasks.
+- skim: include only short recording tasks.
+- ignore: avoid heavy follow-up tasks.
 
 Generate task list in this format:
 

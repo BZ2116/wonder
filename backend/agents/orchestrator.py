@@ -137,10 +137,16 @@ class Orchestrator:
                           pdf_title: str = '') -> Dict[str, Any]:
         """文档分析流程：chunk 并行提取，后续 agent 串行"""
         # 1. 文献解析（chunk 并行提取）
-        raw_reading_card = self.agents["literature"].run(
+        literature_result = self.agents["literature"].run(
             text_chunks=text_chunks,
             progress_callback=progress_callback
         )
+        if isinstance(literature_result, dict):
+            raw_reading_card = literature_result.get("reading_card", "")
+            focused_signals = literature_result.get("focused_signals", [])
+        else:
+            raw_reading_card = literature_result
+            focused_signals = []
         llm_title, reading_card = _extract_paper_title(raw_reading_card)
         paper_title = _resolve_title(llm_title, text_chunks, pdf_title)
 
@@ -150,19 +156,22 @@ class Orchestrator:
             user_research_context=research_context
         )
         relation_text = self._extract_relation_text(relation)
+        decision_brief = relation.get("decision_brief", {}) if isinstance(relation, dict) else None
 
-        # 3. 写作 + 任务规划并行（都依赖 reading_card + relation_text）
+        # 3. 写作 + 任务规划并行（都依赖 reading_card + relation_text + decision_brief）
         with ThreadPoolExecutor(max_workers=2) as executor:
             future_writing = executor.submit(
                 self.agents["writing"].run,
                 reading_card=reading_card,
                 relation_analysis=relation_text,
                 writing_style=writing_style,
+                decision_brief=decision_brief,
             )
             future_todo = executor.submit(
                 self.agents["todo"].run,
                 reading_card=reading_card,
                 relation_analysis=relation_text,
+                decision_brief=decision_brief,
             )
             writing_result = future_writing.result()
             todo = future_todo.result()
@@ -178,6 +187,7 @@ class Orchestrator:
         result = {
             "paper_title": paper_title,
             "reading_card": reading_card,
+            "focused_signals": focused_signals,
             "relation_analysis": relation_text if isinstance(relation, dict) else relation,
             "writing_materials": writing_text,
             "writing_assets": writing_assets,
@@ -191,6 +201,10 @@ class Orchestrator:
             result["suggested_placement"] = relation.get("suggested_placement", {})
             result["novelty_for_kb"] = relation.get("novelty_for_kb", "")
             result["readme_suggestions"] = relation.get("readme_suggestions", [])
+            result["decision_brief"] = relation.get("decision_brief", {})
+            result["knowledge_increment_score"] = relation.get("knowledge_increment_score")
+            result["evidence_strength_score"] = relation.get("evidence_strength_score")
+            result["actionability_score"] = relation.get("actionability_score")
         return result
 
     def run_streaming(self, task_type: str, **kwargs):
@@ -207,15 +221,22 @@ class Orchestrator:
 
         # 1. 文献解析（chunk 并行提取）
         yield {"step": "literature", "status": "running"}
-        raw_reading_card = self.agents["literature"].run(
+        literature_result = self.agents["literature"].run(
             text_chunks=text_chunks,
             progress_callback=progress_callback,
         )
+        if isinstance(literature_result, dict):
+            raw_reading_card = literature_result.get("reading_card", "")
+            focused_signals = literature_result.get("focused_signals", [])
+        else:
+            raw_reading_card = literature_result
+            focused_signals = []
         llm_title, reading_card = _extract_paper_title(raw_reading_card)
         paper_title = _resolve_title(llm_title, text_chunks, pdf_title)
         yield {"step": "literature", "status": "done", "data": reading_card}
         if paper_title:
             yield {"step": "literature_meta", "data": {"paper_title": paper_title}}
+        yield {"step": "focused_signals", "data": focused_signals}
 
         # 2. 关联分析
         yield {"step": "relation", "status": "running"}
@@ -224,6 +245,7 @@ class Orchestrator:
             user_research_context=research_context,
         )
         relation_text = self._extract_relation_text(relation)
+        decision_brief = relation.get("decision_brief", {}) if isinstance(relation, dict) else None
         yield {"step": "relation", "status": "done", "data": relation_text}
 
         # 3. 写作 + 待办并行
@@ -235,11 +257,13 @@ class Orchestrator:
                 reading_card=reading_card,
                 relation_analysis=relation_text,
                 writing_style=writing_style,
+                decision_brief=decision_brief,
             )
             future_todo = executor.submit(
                 self.agents["todo"].run,
                 reading_card=reading_card,
                 relation_analysis=relation_text,
+                decision_brief=decision_brief,
             )
             writing_result = future_writing.result()
             todo = future_todo.result()
@@ -265,6 +289,10 @@ class Orchestrator:
                 "suggested_placement": relation.get("suggested_placement", {}),
                 "novelty_for_kb": relation.get("novelty_for_kb", ""),
                 "readme_suggestions": relation.get("readme_suggestions", []),
+                "decision_brief": relation.get("decision_brief", {}),
+                "knowledge_increment_score": relation.get("knowledge_increment_score"),
+                "evidence_strength_score": relation.get("evidence_strength_score"),
+                "actionability_score": relation.get("actionability_score"),
             }}
 
         # Emit structured writing assets as a separate event
@@ -325,7 +353,7 @@ class Orchestrator:
         )
 
         # --- Phase 3: Finalize policy based on retrieval quality ---
-        reliable_card_refs = [ref for ref in card_refs if (ref.get("score") or 0) >= 0.25]
+        reliable_card_refs = [ref for ref in card_refs if (ref.get("score") or 0) >= 0.35]
         all_source_refs = reliable_card_refs + retrieval.source_refs
         evidence_status = classify_evidence(all_source_refs)
         policy = finalize_policy_after_retrieval(policy, evidence_status=evidence_status)
@@ -382,17 +410,20 @@ class Orchestrator:
         }
 
     def _generate_writing(self, reading_card: str, relation_analysis: str,
-                          writing_style: str) -> str:
+                          writing_style: str, decision_brief: dict | None = None) -> str:
         """生成写作素材"""
         return self.agents["writing"].run(
             reading_card=reading_card,
             relation_analysis=relation_analysis,
-            writing_style=writing_style
+            writing_style=writing_style,
+            decision_brief=decision_brief,
         )
 
-    def _generate_todo(self, reading_card: str, relation_analysis: str) -> str:
+    def _generate_todo(self, reading_card: str, relation_analysis: str,
+                       decision_brief: dict | None = None) -> str:
         """生成任务清单"""
         return self.agents["todo"].run(
             reading_card=reading_card,
-            relation_analysis=relation_analysis
+            relation_analysis=relation_analysis,
+            decision_brief=decision_brief,
         )

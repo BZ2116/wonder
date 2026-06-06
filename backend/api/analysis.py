@@ -201,6 +201,11 @@ async def analyze_gateway(body: GatewayAnalysisRequest, req: Request):
                 "novelty_for_kb": relation_meta.get("novelty_for_kb", ""),
                 "readme_suggestions": relation_meta.get("readme_suggestions", []),
                 "writing_assets": writing_meta if writing_meta else {},
+                "focused_signals": result.get("focused_signals", []),
+                "decision_brief": relation_meta.get("decision_brief", {}),
+                "knowledge_increment_score": relation_meta.get("knowledge_increment_score"),
+                "evidence_strength_score": relation_meta.get("evidence_strength_score"),
+                "actionability_score": relation_meta.get("actionability_score"),
             }
             yield f"event: complete\ndata: {json.dumps(final, ensure_ascii=False)}\n\n"
         except Exception as exc:

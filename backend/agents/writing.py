@@ -15,7 +15,7 @@ Requirements:
 5. Output ONLY a JSON object, no other text.
 """
 
-    def run(self, reading_card: str, relation_analysis: str, writing_style: str) -> dict:
+    def run(self, reading_card: str, relation_analysis: str, writing_style: str, decision_brief: dict | None = None) -> dict:
         user_prompt = f"""
 Material reading card:
 {reading_card}
@@ -25,6 +25,11 @@ Project relation analysis:
 
 User's preferred writing style:
 {writing_style}
+
+Decision brief:
+{json.dumps(decision_brief or {}, ensure_ascii=False)}
+
+Adapt output to the decision brief's best_use. If best_use is "not_useful", keep writing materials short and do not invent value.
 
 Generate a JSON object with two top-level keys:
 
