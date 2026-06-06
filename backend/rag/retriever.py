@@ -244,7 +244,14 @@ class RAGRetriever:
             ref["score"] for ref in source_refs
             if ref["chunk_type"] == "summary" and ref.get("score") is not None
         ]
-        retrieval_confidence = sum(summary_scores) / len(summary_scores) if summary_scores else 0.0
+        if summary_scores:
+            retrieval_confidence = sum(summary_scores) / len(summary_scores)
+        elif ranked_candidates:
+            # Fallback: use evidence candidate scores when summaries are empty
+            candidate_scores = [c.final_score for c in ranked_candidates if c.final_score > 0]
+            retrieval_confidence = sum(candidate_scores) / len(candidate_scores) if candidate_scores else 0.0
+        else:
+            retrieval_confidence = 0.0
 
         return RetrievalResult(
             summaries=summaries_result.get("documents", [[]])[0] if summaries_result.get("documents") else [],
