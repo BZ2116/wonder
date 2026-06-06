@@ -40,6 +40,9 @@ class PaperBlock:
     section_type: str = "unknown"
     section_title: str = ""
     is_reference: bool = False
+    block_id: str = ""
+    order: int = 0
+    label: str = ""
 
 
 @dataclass(frozen=True)
