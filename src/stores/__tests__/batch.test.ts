@@ -18,6 +18,12 @@ describe('useBatchStore', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     useBatchStore.setState({
+      runId: null,
+      runName: '',
+      items: [],
+      running: false,
+      matrixRows: [],
+      matrixLoading: false,
       runs: [],
       runsLoading: false,
       runsError: null,
@@ -40,5 +46,48 @@ describe('useBatchStore', () => {
     await useBatchStore.getState().loadRuns()
 
     expect(useBatchStore.getState().runsError).toBeNull()
+  })
+
+  it('keeps generated matrix rows in store until reset', () => {
+    const rows = [{
+      documentId: 'doc-1',
+      fileName: 'paper.pdf',
+      research_question: 'question',
+      method: 'method',
+      dataset: 'dataset',
+      metrics: 'metrics',
+      innovation: 'innovation',
+      limitation: 'limitation',
+      reusable_idea: 'idea',
+    }]
+
+    useBatchStore.getState().setMatrixRows(rows)
+
+    expect(useBatchStore.getState().matrixRows).toEqual(rows)
+  })
+
+  it('clears matrix state when the user starts a new batch', () => {
+    useBatchStore.setState({
+      runId: 'run-1',
+      runName: 'old batch',
+      matrixRows: [{
+        documentId: 'doc-1',
+        fileName: 'paper.pdf',
+        research_question: 'question',
+        method: 'method',
+        dataset: 'dataset',
+        metrics: 'metrics',
+        innovation: 'innovation',
+        limitation: 'limitation',
+        reusable_idea: 'idea',
+      }],
+      matrixLoading: true,
+    })
+
+    useBatchStore.getState().reset()
+
+    expect(useBatchStore.getState().runId).toBeNull()
+    expect(useBatchStore.getState().matrixRows).toEqual([])
+    expect(useBatchStore.getState().matrixLoading).toBe(false)
   })
 })

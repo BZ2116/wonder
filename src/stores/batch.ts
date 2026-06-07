@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { api } from '../services/api'
 import { createQueue } from '../lib/batch/queue'
+import type { MatrixRow } from '../lib/batch/matrix'
 
 export type BatchItemStatus = 'pending' | 'parsing' | 'analyzing' | 'done' | 'error' | 'cancelled'
 
@@ -28,6 +29,8 @@ interface BatchState {
   items: BatchItemState[]
   running: boolean
   concurrency: number
+  matrixRows: MatrixRow[]
+  matrixLoading: boolean
 
   // Run history
   runs: BatchRunSummary[]
@@ -39,6 +42,8 @@ interface BatchState {
   startExecution: () => Promise<void>
   cancelItem: (itemId: string) => void
   cancelAll: () => void
+  setMatrixRows: (rows: MatrixRow[]) => void
+  setMatrixLoading: (loading: boolean) => void
   loadRuns: () => Promise<void>
   loadRunDetail: (id: string) => Promise<void>
   reset: () => void
@@ -54,6 +59,8 @@ export const useBatchStore = create<BatchState>((set, get) => ({
   items: [],
   running: false,
   concurrency: 2,
+  matrixRows: [],
+  matrixLoading: false,
   runs: [],
   runsLoading: false,
   runsError: null,
@@ -86,6 +93,8 @@ export const useBatchStore = create<BatchState>((set, get) => ({
         error: null,
       })),
       running: false,
+      matrixRows: [],
+      matrixLoading: false,
     })
   },
 
@@ -93,7 +102,7 @@ export const useBatchStore = create<BatchState>((set, get) => ({
     const { runId, items, concurrency } = get()
     if (!runId) return
 
-    set({ running: true })
+    set({ running: true, matrixRows: [], matrixLoading: false })
 
     // Update run status on server
     await api.patch(`/api/batch/runs/${runId}`, { status: 'running' })
@@ -215,6 +224,9 @@ export const useBatchStore = create<BatchState>((set, get) => ({
     }))
   },
 
+  setMatrixRows: (rows) => set({ matrixRows: rows }),
+  setMatrixLoading: (loading) => set({ matrixLoading: loading }),
+
   loadRuns: async () => {
     set({ runsLoading: true, runsError: null })
     try {
@@ -241,12 +253,14 @@ export const useBatchStore = create<BatchState>((set, get) => ({
         historyId: item.history_id,
         error: item.error,
       })),
+      matrixRows: [],
+      matrixLoading: false,
     })
   },
 
   reset: () => {
     abortControllers.clear()
     pendingFiles.clear()
-    set({ runId: null, runName: '', items: [], running: false, runsError: null })
+    set({ runId: null, runName: '', items: [], running: false, matrixRows: [], matrixLoading: false, runsError: null })
   },
 }))

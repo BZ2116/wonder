@@ -165,7 +165,7 @@ export default function CitationNetwork() {
       </div>
 
       {loading ? (
-        <div style={{ textAlign: 'center', padding: '80px 0' }}>
+        <div className="wonder-loading-center">
           <Spin size="large" />
           <div style={{ marginTop: 16, color: 'var(--ink-faint)' }}>正在加载引用数据...</div>
         </div>

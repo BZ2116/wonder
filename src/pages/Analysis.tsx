@@ -37,7 +37,7 @@ export default function Analysis() {
 
   const { addDocumentToKB } = useKnowledgeStore()
 
-  const [selectedKB, setSelectedKB] = useState<string | null>(searchParams.get('kb'))
+  const [selectedKB, setSelectedKB] = useState<string | null>(searchParams.get('kb') || knowledgeBaseId)
   const [analysisResult, setAnalysisResult] = useState<AnalysisResultType | null>(null)
   const [addedToKB, setAddedToKB] = useState(false)
   const [candidate, setCandidate] = useState<CandidateInfo | null>(null)
@@ -51,6 +51,12 @@ export default function Analysis() {
     const kbParam = searchParams.get('kb')
     if (kbParam) setSelectedKB(kbParam)
   }, [searchParams])
+
+  useEffect(() => {
+    if (!searchParams.get('kb') && knowledgeBaseId) {
+      setSelectedKB(knowledgeBaseId)
+    }
+  }, [knowledgeBaseId, searchParams])
 
   // Fetch candidate info when candidateId is present
   useEffect(() => {

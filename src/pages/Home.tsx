@@ -148,7 +148,7 @@ export default function Home() {
         </div>
 
         {kbLoading ? (
-          <div style={{ textAlign: 'center', padding: '80px 0' }}>
+          <div className="wonder-loading-center">
             <Spin />
           </div>
         ) : knowledgeBases.length === 0 ? (

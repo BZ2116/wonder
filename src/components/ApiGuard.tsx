@@ -14,7 +14,7 @@ export default function ApiGuard({ require, children }: ApiGuardProps) {
 
   if (!loaded) {
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
+      <div className="wonder-loading-center">
         <Spin size="large" />
       </div>
     )

@@ -31,7 +31,7 @@ export default function HistoryDetail() {
 
   if (loading) {
     return (
-      <div style={{ textAlign: 'center', padding: '80px 0' }}>
+      <div className="wonder-loading-center">
         <Spin size="large" />
       </div>
     )

@@ -98,7 +98,7 @@ export default function Knowledge() {
           </div>
 
           {kbLoading ? (
-            <div style={{ textAlign: 'center', padding: '60px 0' }}><Spin /></div>
+            <div className="wonder-loading-center"><Spin /></div>
           ) : knowledgeBases.length === 0 ? (
             <Empty
               description={
@@ -199,11 +199,11 @@ export default function Knowledge() {
           )}
         </div>
 
-        <div style={{ display: 'flex', gap: 16, marginBottom: 16, alignItems: 'stretch' }}>
+        <div className="wonder-kb-readme-row">
           {/* README */}
           <Card
             size="small"
-            style={{ flex: 1, display: 'flex', flexDirection: 'column' }}
+            className="wonder-kb-readme-card"
             title={<><BookOutlined /> README</>}
             extra={<Button size="small" icon={<EditOutlined />} onClick={() => {
               readmeForm.setFieldsValue({ readme: selectedKB?.readme })
@@ -211,7 +211,7 @@ export default function Knowledge() {
             }}>编辑</Button>}
             bodyStyle={{ flex: 1, overflow: 'hidden' }}
           >
-            <div style={{ flex: 1, overflow: 'auto', whiteSpace: 'pre-wrap', fontSize: 13 }}>
+            <div className="wonder-kb-readme-scroll">
               {selectedKB?.readme || '暂无 README'}
             </div>
           </Card>
@@ -219,12 +219,12 @@ export default function Knowledge() {
           {/* README Suggestions */}
           <Card
             size="small"
-            style={{ flex: 1, display: 'flex', flexDirection: 'column', height: 480 }}
+            className="wonder-kb-readme-card"
             title={<><SettingOutlined /> README 建议</>}
             extra={readmeSuggestions.length > 0 ? <Tag color="orange">{readmeSuggestions.length}</Tag> : null}
             bodyStyle={{ flex: 1, overflow: 'hidden' }}
           >
-            <div style={{ flex: 1, overflow: 'auto', maxHeight: 420 }}>
+            <div className="wonder-kb-readme-scroll">
               {readmeSuggestions.length === 0 ? (
                 <Empty description="暂无待处理的建议" image={Empty.PRESENTED_IMAGE_SIMPLE} />
               ) : (
@@ -262,7 +262,7 @@ export default function Knowledge() {
           extra={<Tag>{kbDocuments.length} 篇</Tag>}
         >
           {kbDocsLoading ? (
-            <div style={{ textAlign: 'center', padding: '40px 0' }}><Spin /></div>
+            <div className="wonder-card-loading"><Spin /></div>
           ) : kbDocuments.length === 0 ? (
             <Empty description="该知识库暂无文档" image={Empty.PRESENTED_IMAGE_SIMPLE} />
           ) : (

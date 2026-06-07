@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import { Card, Typography, Button, Progress, Empty, Tag, Space, Table, message } from 'antd'
 import {
   InboxOutlined, PlayCircleOutlined, FileTextOutlined,
@@ -17,13 +17,13 @@ import {
 export default function Batch() {
   const {
     runId, runName, items, running,
+    matrixRows, matrixLoading,
     createRun, startExecution, cancelItem, cancelAll, reset,
+    setMatrixRows, setMatrixLoading,
   } = useBatchStore()
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const filesRef = useRef<File[]>([])
-  const [matrixRows, setMatrixRows] = useState<MatrixRow[]>([])
-  const [matrixLoading, setMatrixLoading] = useState(false)
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
@@ -84,11 +84,7 @@ export default function Batch() {
     if (allFinished && hasDoneItems && matrixRows.length === 0) {
       buildMatrix()
     }
-  }, [allFinished, hasDoneItems])
-
-  useEffect(() => {
-    return () => { reset() }
-  }, [])
+  }, [allFinished, hasDoneItems, matrixRows.length, items])
 
   const handleCopyMarkdown = () => {
     const md = exportMatrixMarkdown(matrixRows)
