@@ -3,6 +3,7 @@ import path from 'path'
 import net from 'net'
 import fs from 'fs'
 import { spawn, ChildProcess } from 'child_process'
+import { createHash } from 'crypto'
 
 const gotTheLock = app.requestSingleInstanceLock()
 
@@ -220,6 +221,35 @@ function sendSplashError(msg: string) {
   }
 }
 
+function createRendererSignature(rendererDir: string): string {
+  const hash = createHash('sha256')
+  const files: string[] = []
+
+  const walk = (dir: string) => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const absolutePath = path.join(dir, entry.name)
+      if (entry.isDirectory()) {
+        walk(absolutePath)
+      } else if (entry.isFile()) {
+        files.push(path.relative(rendererDir, absolutePath).replace(/\\/g, '/'))
+      }
+    }
+  }
+
+  walk(rendererDir)
+  files.sort()
+
+  for (const relativePath of files) {
+    const absolutePath = path.join(rendererDir, relativePath)
+    hash.update(relativePath)
+    hash.update('\0')
+    hash.update(fs.readFileSync(absolutePath))
+    hash.update('\0')
+  }
+
+  return hash.digest('hex')
+}
+
 async function startApp() {
   const port = await findFreePort()
   const pythonPort = await findFreePort()
@@ -235,11 +265,20 @@ async function startApp() {
     ? path.join(process.resourcesPath, 'app.asar.unpacked', 'dist', 'renderer')
     : path.join(app.getAppPath(), 'dist', 'renderer')
   const versionFile = path.join(staticDir, '.version')
+  const signatureFile = path.join(staticDir, '.renderer-signature')
   const currentVersion = app.getVersion()
-  if (!fs.existsSync(staticDir) || !fs.existsSync(versionFile) || fs.readFileSync(versionFile, 'utf-8') !== currentVersion) {
+  const currentRendererSignature = createRendererSignature(rendererSource)
+  const cachedRendererSignature = fs.existsSync(signatureFile) ? fs.readFileSync(signatureFile, 'utf-8') : null
+  if (
+    !fs.existsSync(staticDir) ||
+    !fs.existsSync(versionFile) ||
+    fs.readFileSync(versionFile, 'utf-8') !== currentVersion ||
+    cachedRendererSignature !== currentRendererSignature
+  ) {
     fs.rmSync(staticDir, { recursive: true, force: true })
     fs.cpSync(rendererSource, staticDir, { recursive: true })
     fs.writeFileSync(versionFile, currentVersion)
+    fs.writeFileSync(signatureFile, currentRendererSignature)
   }
   process.env.STATIC_DIR = staticDir
 
