@@ -148,7 +148,11 @@ def chroma_safe_metadata(chunk: PaperChunk) -> dict:
 
 
 def _join_scalar(values: list[str], sep: str = "|") -> str:
-    return sep.join(str(value).strip() for value in values if str(value).strip())
+    def _to_str(value) -> str:
+        if isinstance(value, bool):
+            return str(value).lower()
+        return str(value).strip()
+    return sep.join(_to_str(value) for value in values if _to_str(value))
 
 
 def enrichment_embedding_text(paper_title: str | None, chunk: PaperChunk) -> str:
