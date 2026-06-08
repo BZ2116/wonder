@@ -175,6 +175,35 @@ def test_literature_agent_parses_focused_chunk_json():
     assert result["missing_or_uncertain"] == ["dataset unclear"]
 
 
+def test_writing_agent_removes_internal_field_names_from_user_materials():
+    from backend.agents.writing import WritingAgent
+
+    class FakeProvider:
+        def chat(self, **kwargs):
+            return """
+{
+  "writing_assets": {
+    "usable_claims": ["claim"],
+    "method_references": [],
+    "theory_references": [],
+    "possible_literature_review_use": "",
+    "limitations_or_critique": ""
+  },
+  "writing_materials": "# writing_assets\\nThis section should be readable writing material."
+}
+"""
+
+    agent = WritingAgent("test-model", provider=FakeProvider())
+    result = agent.run(
+        reading_card="card",
+        relation_analysis="relation",
+        writing_style="中文学术写作",
+    )
+
+    assert "writing_assets" not in result["writing_materials"]
+    assert "readable writing material" in result["writing_materials"]
+
+
 def test_health_alias_available():
     client = TestClient(app)
     res = client.get("/health")
@@ -187,6 +216,27 @@ def test_readme_advisor_rejects_invalid_body():
     client = TestClient(app)
     res = client.post("/api/readme-advisor/generate", json={"invalid_field": 123})
     assert res.status_code == 422
+
+
+def test_literature_signal_normalization_preserves_evidence_chunk_ids():
+    from backend.agents.literature import LiteratureParserAgent
+
+    signal = LiteratureParserAgent._normalize_signal(
+        {
+            "text": "论文方法依赖照明图估计。",
+            "signal_type": "method",
+            "section_type": "method",
+            "evidence_hint": "illumination map",
+            "evidence_chunk_ids": ["c1", "c2"],
+            "source_terms": ["illumination map"],
+            "confidence": "high",
+        },
+        chunk_index=0,
+    )
+
+    assert signal["evidence_chunk_ids"] == ["c1", "c2"]
+    assert signal["source_terms"] == ["illumination map"]
+    assert signal["confidence"] == "high"
 
 
 def test_knowledge_index_request_accepts_structured_paper_chunk_fields():

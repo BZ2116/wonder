@@ -3,6 +3,7 @@ import re
 from typing import Any, Dict, List
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from .base import BaseAgent
+from backend.core.providers.base import ProviderError
 
 
 class LiteratureParserAgent(BaseAgent):
@@ -35,12 +36,15 @@ Output format:
 - Reusable Content:
 - Uncertain/Missing Information:
 """
-        return self.call_llm(
-            system_prompt=self.SYSTEM_PROMPT,
-            user_prompt=user_prompt,
-            temperature=0.2,
-            max_tokens=2200,
-        )
+        try:
+            return self.call_llm(
+                system_prompt=self.SYSTEM_PROMPT,
+                user_prompt=user_prompt,
+                temperature=0.2,
+                max_tokens=2200,
+            )
+        except ProviderError:
+            return ""
 
     @staticmethod
     def _strip_json_fence(raw: str) -> str:
@@ -52,12 +56,21 @@ Output format:
 
     @staticmethod
     def _normalize_signal(signal: Dict[str, Any], chunk_index: int) -> Dict[str, Any]:
+        evidence_ids = signal.get("evidence_chunk_ids", signal.get("evidenceChunkIds", []))
+        if not isinstance(evidence_ids, list):
+            evidence_ids = []
+        source_terms = signal.get("source_terms", signal.get("sourceTerms", []))
+        if not isinstance(source_terms, list):
+            source_terms = []
         return {
             "text": str(signal.get("text", "")).strip(),
             "signal_type": str(signal.get("signal_type", signal.get("signalType", "unknown"))).strip() or "unknown",
             "section_type": str(signal.get("section_type", signal.get("sectionType", "unknown"))).strip() or "unknown",
             "chunk_index": chunk_index,
             "evidence_hint": str(signal.get("evidence_hint", signal.get("evidenceHint", ""))).strip(),
+            "evidence_chunk_ids": [str(item).strip() for item in evidence_ids if str(item).strip()],
+            "source_terms": [str(item).strip() for item in source_terms if str(item).strip()],
+            "confidence": str(signal.get("confidence", "medium")).strip() or "medium",
         }
 
     def _parse_focused_chunk_result(self, raw: str, chunk_index: int) -> Dict[str, Any]:
@@ -85,14 +98,15 @@ Output format:
             "missing_or_uncertain": [str(item).strip() for item in missing if str(item).strip()],
         }
 
-    def _extract_focused_chunk(self, chunk: str, chunk_index: int, research_context: str) -> Dict[str, Any]:
+    def _extract_focused_chunk(self, chunk: str, chunk_index: int, research_context: str, evidence_chunk_id: str = "") -> Dict[str, Any]:
+        evidence_id_instruction = f'\nNote: this fragment corresponds to evidence chunk id `{evidence_chunk_id}`.' if evidence_chunk_id else ""
         user_prompt = f"""
 Read this material fragment in light of the user's research context.
 
 User research context:
 {research_context or "No explicit research context provided."}
 
-Fragment index: {chunk_index}
+Fragment index: {chunk_index}{evidence_id_instruction}
 Fragment:
 {chunk}
 
@@ -103,7 +117,10 @@ Return ONLY a JSON object:
       "text": "concise Chinese statement",
       "signal_type": "key_claim|method|result|novelty|overlap|conflict_or_risk|reuse",
       "section_type": "abstract|introduction|method|experiment|result|discussion|conclusion|reference|unknown",
-      "evidence_hint": "short source phrase"
+      "evidence_hint": "short source phrase",
+      "evidence_chunk_ids": ["{evidence_chunk_id}"],
+      "source_terms": ["source English term"],
+      "confidence": "high|medium|low"
     }}
   ],
   "missing_or_uncertain": ["concise Chinese uncertainty note"]
@@ -114,13 +131,18 @@ Rules:
 - Do not treat bibliography/reference-list content as evidence for paper claims.
 - Do not fabricate datasets, metrics, results, or limitations.
 - If a section is unclear, use "unknown".
+- When an evidence chunk id is provided, include it in evidence_chunk_ids for every supported signal.
+- Use source_terms for exact English methods, datasets, metrics, equations, figures, and model names.
 """
-        raw = self.call_llm(
-            system_prompt=self.SYSTEM_PROMPT,
-            user_prompt=user_prompt,
-            temperature=0.15,
-            max_tokens=1800,
-        )
+        try:
+            raw = self.call_llm(
+                system_prompt=self.SYSTEM_PROMPT,
+                user_prompt=user_prompt,
+                temperature=0.15,
+                max_tokens=1800,
+            )
+        except ProviderError:
+            return {"chunk_index": chunk_index, "signals": [], "missing_or_uncertain": ["chunk extraction failed due to empty model response"]}
         return self._parse_focused_chunk_result(raw, chunk_index)
 
     def _merge_reading_card(self, partial_summaries: List[str]) -> str:
@@ -166,12 +188,15 @@ Point out possible shortcomings in methods, experiments, or arguments.
 ## 8. One-line Summary
 Summarize the value of this material in one sentence.
 """
-        return self.call_llm(
-            system_prompt=self.SYSTEM_PROMPT,
-            user_prompt=merged_prompt,
-            temperature=0.2,
-            max_tokens=3500,
-        )
+        try:
+            return self.call_llm(
+                system_prompt=self.SYSTEM_PROMPT,
+                user_prompt=merged_prompt,
+                temperature=0.2,
+                max_tokens=3500,
+            )
+        except ProviderError:
+            return "# Research Material Reading Card\n\n## 1. Topic Summary\n（文献解析失败，请手动记录）\n\n## 2. Core Pain Points\n-\n\n## 3. Method/System Workflow\n-\n\n## 4. Datasets, Experiment Settings & Metrics\n-\n\n## 5. Key Claims & Innovations\n-\n\n## 6. Related Work & References\n-\n\n## 7. Limitations & Risks\n-\n\n## 8. One-line Summary\n（摘要生成失败）"
 
     def run(self, text_chunks: List[str], research_context: str = "", progress_callback=None) -> Dict[str, Any]:
         focused_results: List[Dict[str, Any]] = [None] * len(text_chunks)  # type: ignore[list-item]
