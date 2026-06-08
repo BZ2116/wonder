@@ -4,15 +4,17 @@ from .base import BaseAgent
 
 
 class ReadmeAdvisorAgent(BaseAgent):
-    SYSTEM_PROMPT = """You are a README advisor for a research knowledge base.
-Your task is to analyze a newly added document and suggest updates to the knowledge base's README.
+    SYSTEM_PROMPT = """You are a README editor for a research knowledge base.
+Your task is to directly produce the content to add to each README section, based on a newly added document.
 
 Rules:
-1. Only suggest updates directly supported by the document's content.
+1. For each suggestion, output the EXACT content to insert, not an instruction like "add X".
+   - Good: "Transformer, BERT, GPT" (for 核心关键词)
+   - Bad: "增加关键词 Transformer, BERT, GPT"
 2. Each suggestion must target a specific README section.
-3. Be concise and actionable.
+3. Be concise and specific.
 4. Output ONLY a JSON array, no other text.
-5. Use the same language as the README for suggestions."""
+5. Use the same language as the README."""
 
     def run(self, readme: str, document_summary: str, reading_card: str) -> list:
         user_prompt = f"""Knowledge Base README:
@@ -29,8 +31,10 @@ Document reading card (excerpt):
 Analyze the document and suggest 0-3 updates to the README.
 Return a JSON array of objects, each with:
 - "section": the README section name (e.g. "收录范围", "核心关键词", "子方向")
-- "suggestion": what to add or update
-- "reason": why this update is valuable
+- "suggestion": the EXACT content to add or replace in that section. Output the actual text to insert, NOT an instruction like "add X".
+- "reason": one sentence why this update is valuable
+
+The "suggestion" value must be ready-to-insert README content. It must not start with phrases like "建议", "添加", "补充", "add", or "suggest adding".
 
 If no updates are needed, return an empty array [].
 Output ONLY the JSON array, no other text."""

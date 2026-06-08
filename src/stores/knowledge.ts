@@ -183,7 +183,7 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
   reindexDocument: async (kbId, documentId) => {
     try {
       await api.post(`/api/knowledge-bases/${kbId}/documents/${documentId}/reindex`)
-      get().loadKBDocuments(kbId)
+      await get().loadKBDocuments(kbId)
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       set({ error: msg })

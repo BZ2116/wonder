@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Typography, Input, AutoComplete, Button, message, Steps } from 'antd'
+import { Input, AutoComplete, Button, message } from 'antd'
 import {
   ThunderboltOutlined,
   ApiOutlined,
@@ -51,6 +51,18 @@ const providers: ProviderConfig[] = [
     models: ['glm-5'],
   },
 ]
+
+/* ─── Decorative SVG ─── */
+function DecoCorner() {
+  return (
+    <svg className="welcome-deco" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <path d="M160 0 Q200 0 200 40 Q200 80 160 80 Q120 80 120 40 Q120 0 160 0Z" fill="var(--accent)" opacity="0.06"/>
+      <circle cx="30" cy="30" r="60" stroke="var(--accent)" strokeWidth="0.75" fill="none" opacity="0.08"/>
+      <circle cx="30" cy="30" r="40" stroke="var(--accent)" strokeWidth="0.5" fill="none" opacity="0.06"/>
+      <path d="M10 100 Q30 60 60 80 Q90 100 80 130" stroke="var(--border)" strokeWidth="1" strokeLinecap="round" fill="none" opacity="0.3"/>
+    </svg>
+  )
+}
 
 export default function Welcome() {
   const navigate = useNavigate()
@@ -119,7 +131,6 @@ export default function Welcome() {
   }
 
   const canProceedStep0 = form.provider && form.apiKey && form.model
-  const canProceedStep1 = true // 个人信息可选
 
   const handleFinish = async () => {
     setSaving(true)
@@ -163,69 +174,54 @@ export default function Welcome() {
     return (
       <button
         key={provider.id}
-        className={`wonder-provider-card ${isActive ? 'wonder-provider-card--active' : ''}`}
+        className={`wp-provider-card ${isActive ? 'wp-provider-card--active' : ''}`}
         onClick={() => handleProviderChange(provider.id, target)}
       >
-        <span className="wonder-provider-name">{provider.name}</span>
-        {isActive && <CheckOutlined className="wonder-provider-check" />}
+        <span className="wp-provider-name">{provider.name}</span>
+        {isActive && <CheckOutlined className="wp-provider-check" />}
       </button>
     )
   }
 
   const renderStep0 = () => (
-    <div className="welcome-step-content">
-      <h3 className="welcome-step-title">
-        <ApiOutlined /> 配置 LLM API
-      </h3>
-      <p className="welcome-step-desc">选择服务商并填入 API Key，用于论文分析和知识库问答</p>
-
-      <div className="welcome-step-section">
-        <label className="welcome-step-label">
+    <div className="wp-step-content">
+      <div className="wp-field-group">
+        <label className="wp-field-label">
           <RobotOutlined /> 分析模型
         </label>
-        <div className="wonder-provider-grid" style={{ marginBottom: 12 }}>
+        <div className="wp-provider-grid">
           {providers.map(p => renderProviderCard(p, 'analysis'))}
           <button
-            className={`wonder-provider-card ${form.provider === 'custom' ? 'wonder-provider-card--active' : ''}`}
+            className={`wp-provider-card ${form.provider === 'custom' ? 'wp-provider-card--active' : ''}`}
             onClick={() => setForm(f => ({ ...f, provider: 'custom', model: '' }))}
           >
-            <span className="wonder-provider-name"><PlusOutlined /> 自定义</span>
-            {form.provider === 'custom' && <CheckOutlined className="wonder-provider-check" />}
+            <span className="wp-provider-name"><PlusOutlined /> 自定义</span>
+            {form.provider === 'custom' && <CheckOutlined className="wp-provider-check" />}
           </button>
         </div>
 
         {form.provider && (
-          <>
-            <div style={{ marginBottom: 12 }}>
-              <Typography.Text style={{ display: 'block', marginBottom: 4, color: 'var(--ink-caption)', fontSize: 12 }}>
-                API Base URL
-              </Typography.Text>
+          <div className="wp-fields">
+            <div className="wp-field">
+              <span className="wp-field-hint">API Base URL</span>
               <Input
                 placeholder="https://api.example.com/anthropic"
                 value={form.baseUrl}
                 onChange={e => setForm(f => ({ ...f, baseUrl: e.target.value }))}
               />
             </div>
-            <div style={{ marginBottom: 12 }}>
-              <Typography.Text style={{ display: 'block', marginBottom: 4, color: 'var(--ink-caption)', fontSize: 12 }}>
-                <KeyOutlined /> API Key
-              </Typography.Text>
+            <div className="wp-field">
+              <span className="wp-field-hint"><KeyOutlined /> API Key</span>
               <Input.Password
                 placeholder="输入 API Key"
                 value={form.apiKey}
                 onChange={e => setForm(f => ({ ...f, apiKey: e.target.value }))}
               />
             </div>
-            <div style={{ marginBottom: 8 }}>
-              <Typography.Text style={{ display: 'block', marginBottom: 4, color: 'var(--ink-caption)', fontSize: 12 }}>
-                模型名称
-              </Typography.Text>
+            <div className="wp-field">
+              <span className="wp-field-hint">模型名称</span>
               {form.provider === 'custom' ? (
-                <Input
-                  placeholder="输入模型名称"
-                  value={form.model}
-                  onChange={e => setForm(f => ({ ...f, model: e.target.value }))}
-                />
+                <Input placeholder="输入模型名称" value={form.model} onChange={e => setForm(f => ({ ...f, model: e.target.value }))} />
               ) : (
                 <AutoComplete
                   style={{ width: '100%' }}
@@ -237,63 +233,45 @@ export default function Welcome() {
                 />
               )}
             </div>
-          </>
+          </div>
         )}
       </div>
 
-      <div style={{ borderTop: '1px solid var(--border)', margin: '20px 0' }} />
+      <div className="wp-divider" />
 
-      <div className="welcome-step-section">
-        <label className="welcome-step-label">
+      <div className="wp-field-group">
+        <label className="wp-field-label">
           <ExperimentOutlined /> Embedding 模型
-          <span style={{ fontWeight: 'normal', color: 'var(--ink-faint)', marginLeft: 8, fontSize: 12 }}>可选，留空则复用分析模型</span>
+          <span className="wp-field-label-hint">可选，留空则复用分析模型</span>
         </label>
-        <div className="wonder-provider-grid" style={{ marginBottom: 12 }}>
+        <div className="wp-provider-grid">
           {providers.map(p => renderProviderCard(p, 'embedding'))}
           <button
-            className={`wonder-provider-card ${form.embeddingProvider === 'custom' ? 'wonder-provider-card--active' : ''}`}
+            className={`wp-provider-card ${form.embeddingProvider === 'custom' ? 'wp-provider-card--active' : ''}`}
             onClick={() => setForm(f => ({ ...f, embeddingProvider: 'custom', embeddingModel: '' }))}
           >
-            <span className="wonder-provider-name"><PlusOutlined /> 自定义</span>
-            {form.embeddingProvider === 'custom' && <CheckOutlined className="wonder-provider-check" />}
+            <span className="wp-provider-name"><PlusOutlined /> 自定义</span>
+            {form.embeddingProvider === 'custom' && <CheckOutlined className="wp-provider-check" />}
           </button>
         </div>
 
         {form.embeddingProvider && (
-          <>
-            <div style={{ marginBottom: 12 }}>
-              <Typography.Text style={{ display: 'block', marginBottom: 4, color: 'var(--ink-caption)', fontSize: 12 }}>
-                API Base URL
-              </Typography.Text>
-              <Input
-                placeholder="https://api.example.com/anthropic"
-                value={form.embeddingBaseUrl}
-                onChange={e => setForm(f => ({ ...f, embeddingBaseUrl: e.target.value }))}
-              />
+          <div className="wp-fields">
+            <div className="wp-field">
+              <span className="wp-field-hint">API Base URL</span>
+              <Input placeholder="https://api.example.com/anthropic" value={form.embeddingBaseUrl} onChange={e => setForm(f => ({ ...f, embeddingBaseUrl: e.target.value }))} />
             </div>
-            <div style={{ marginBottom: 12 }}>
-              <Typography.Text style={{ display: 'block', marginBottom: 4, color: 'var(--ink-caption)', fontSize: 12 }}>
+            <div className="wp-field">
+              <span className="wp-field-hint">
                 <KeyOutlined /> API Key
-                {form.apiKey && (
-                  <span style={{ marginLeft: 8, color: 'var(--ink-faint)', fontSize: 11 }}>(留空则复用分析模型的 Key)</span>
-                )}
-              </Typography.Text>
-              <Input.Password
-                placeholder="输入 API Key"
-                value={form.embeddingApiKey}
-                onChange={e => setForm(f => ({ ...f, embeddingApiKey: e.target.value }))}
-              />
+                {form.apiKey && <span style={{ fontWeight: 'normal', marginLeft: 6 }}>(留空则复用)</span>}
+              </span>
+              <Input.Password placeholder="输入 API Key" value={form.embeddingApiKey} onChange={e => setForm(f => ({ ...f, embeddingApiKey: e.target.value }))} />
             </div>
-            <div style={{ marginBottom: 8 }}>
-              <Typography.Text style={{ display: 'block', marginBottom: 4, color: 'var(--ink-caption)', fontSize: 12 }}>
-                模型名称
-              </Typography.Text>
+            <div className="wp-field">
+              <span className="wp-field-hint">模型名称</span>
               {form.embeddingProvider === 'custom' ? (
-                <Input
-                  placeholder="输入模型名称"
-                  value={form.embeddingModel}
-                  onChange={e => setForm(f => ({ ...f, embeddingModel: e.target.value }))}
-                />
+                <Input placeholder="输入模型名称" value={form.embeddingModel} onChange={e => setForm(f => ({ ...f, embeddingModel: e.target.value }))} />
               ) : (
                 <AutoComplete
                   style={{ width: '100%' }}
@@ -305,191 +283,131 @@ export default function Welcome() {
                 />
               )}
             </div>
-          </>
+          </div>
         )}
       </div>
     </div>
   )
 
   const renderStep1 = () => (
-    <div className="welcome-step-content">
-      <h3 className="welcome-step-title">
-        <UserOutlined /> 个人信息
-      </h3>
-      <p className="welcome-step-desc">设置昵称和头像，AI 在对话中会用昵称称呼你</p>
-
-      <div className="welcome-step-profile">
-        <div
-          className="welcome-step-avatar"
-          onClick={() => fileInputRef.current?.click()}
-        >
+    <div className="wp-step-content">
+      <div className="wp-avatar-center">
+        <div className="wp-avatar" onClick={() => fileInputRef.current?.click()}>
           {form.avatar ? (
             <img src={form.avatar} alt="头像" />
           ) : (
-            <CameraOutlined style={{ fontSize: 28, color: 'var(--ink-ghost)' }} />
+            <CameraOutlined style={{ fontSize: 26, color: 'var(--ink-ghost)' }} />
           )}
-          <div className="welcome-step-avatar-overlay">
-            <CameraOutlined style={{ fontSize: 14, color: '#fff' }} />
+          <div className="wp-avatar-overlay">
+            <CameraOutlined style={{ fontSize: 13, color: '#fff' }} />
           </div>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            style={{ display: 'none' }}
-            onChange={handleAvatarChange}
-          />
+          <input ref={fileInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleAvatarChange} />
         </div>
+        <span className="wp-avatar-hint">点击上传头像</span>
       </div>
 
-      <div style={{ marginTop: 20 }}>
-        <Typography.Text style={{ display: 'block', marginBottom: 4, color: 'var(--ink-caption)', fontSize: 12 }}>
-          昵称
-        </Typography.Text>
-        <Input
-          placeholder="你希望 AI 怎么称呼你"
-          value={form.nickname}
-          onChange={e => setForm(f => ({ ...f, nickname: e.target.value }))}
-          maxLength={20}
-          showCount
-        />
+      <div className="wp-fields" style={{ marginTop: 20 }}>
+        <div className="wp-field">
+          <span className="wp-field-hint">昵称</span>
+          <Input placeholder="你希望 AI 怎么称呼你" value={form.nickname} onChange={e => setForm(f => ({ ...f, nickname: e.target.value }))} maxLength={20} showCount />
+        </div>
       </div>
     </div>
   )
 
   const renderStep2 = () => (
-    <div className="welcome-step-content">
-      <h3 className="welcome-step-title">
-        <BookOutlined /> 研究方向
-      </h3>
-      <p className="welcome-step-desc">描述你的研究背景，帮助 AI 更好地理解你的学术需求</p>
-
-      <div style={{ marginBottom: 16 }}>
-        <Typography.Text style={{ display: 'block', marginBottom: 4, color: 'var(--ink-caption)', fontSize: 12 }}>
-          全局用户画像
-        </Typography.Text>
-        <Typography.Text style={{ display: 'block', marginBottom: 8, color: 'var(--ink-faint)', fontSize: 12 }}>
-          描述你的专业、研究阶段、长期兴趣、偏好方法、写作风格等
-        </Typography.Text>
-        <Input.TextArea
-          rows={8}
-          placeholder={`例如：
+    <div className="wp-step-content">
+      <div className="wp-profile-template">
+        <span className="wp-profile-tag">全局画像</span>
+        <p className="wp-profile-hint">描述你的专业、研究阶段、长期兴趣、偏好方法等，AI 会据此调整回答风格</p>
+      </div>
+      <div className="wp-fields" style={{ marginTop: 8 }}>
+        <div className="wp-field">
+          <Input.TextArea
+            rows={9}
+            placeholder={`例如：
 - 专业：计算机科学，研二
 - 研究方向：大语言模型在教育领域的应用
 - 偏好方法：混合研究方法，注重实证
 - 写作风格：学术正式，偏好结构化表达
-- 分析偏好：关注方法论创新和实际应用价值
-- 约束：避免泛泛而谈，标记不确定的结论`}
-          value={form.globalUserProfile}
-          onChange={e => setForm(f => ({ ...f, globalUserProfile: e.target.value }))}
-          style={{ resize: 'vertical', fontFamily: 'var(--font-mono)', fontSize: 13 }}
-        />
+- 分析偏好：关注方法论创新和实际应用价值`}
+            value={form.globalUserProfile}
+            onChange={e => setForm(f => ({ ...f, globalUserProfile: e.target.value }))}
+            style={{ resize: 'vertical', fontFamily: 'var(--font-mono)', fontSize: 13 }}
+          />
+        </div>
       </div>
     </div>
   )
 
-  const steps = [
-    { title: 'API 配置', icon: <ApiOutlined /> },
-    { title: '个人信息', icon: <UserOutlined /> },
-    { title: '研究方向', icon: <BookOutlined /> },
-  ]
+  const stepLabels = ['API 配置', '个人信息', '研究方向']
+  const stepIcons = [<ApiOutlined />, <UserOutlined />, <BookOutlined />]
 
   return (
-    <div style={{
-      display: 'flex',
-      justifyContent: 'center',
-      alignItems: 'center',
-      minHeight: '100vh',
-      background: 'var(--bg)',
-    }}>
-      <div style={{ width: '100%', maxWidth: 560, padding: '0 24px' }}>
-        {/* Logo */}
-        <div style={{ textAlign: 'center', marginBottom: 32 }}>
-          <div style={{
-            width: 64,
-            height: 64,
-            borderRadius: 18,
-            background: 'linear-gradient(135deg, var(--accent), #7BA08E)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            margin: '0 auto 16px',
-            boxShadow: '0 8px 24px rgba(91, 127, 110, 0.3)',
-          }}>
-            <ThunderboltOutlined style={{ fontSize: 26, color: '#fff' }} />
+    <div className="wp-root">
+      <DecoCorner />
+
+      <div className="wp-container">
+        {/* Header */}
+        <div className="wp-header">
+          <div className="wp-logo">
+            <ThunderboltOutlined />
           </div>
-          <Typography.Title level={3} style={{ fontFamily: 'var(--font-serif)', marginBottom: 4 }}>
-            欢迎使用 Wonder
-          </Typography.Title>
-          <Typography.Text style={{ color: 'var(--ink-caption)', fontSize: 14 }}>
-            完成以下配置开始你的学术之旅
-          </Typography.Text>
+          <h1 className="wp-title">欢迎使用 Wonder</h1>
+          <p className="wp-subtitle">完成以下配置，开始你的学术研究之旅</p>
         </div>
 
-        {/* Steps */}
-        <Steps
-          current={step}
-          items={steps.map(s => ({ title: s.title, icon: s.icon }))}
-          style={{ marginBottom: 32 }}
-          size="small"
-        />
+        {/* Step indicator */}
+        <div className="wp-steps">
+          {stepLabels.map((label, i) => (
+            <div key={i} className="wp-step-item">
+              <div className={`wp-step-dot ${i === step ? 'wp-step-dot--active' : i < step ? 'wp-step-dot--done' : ''}`}>
+                {i < step ? <CheckOutlined /> : stepIcons[i]}
+              </div>
+              <span className={`wp-step-label ${i === step ? 'wp-step-label--active' : i < step ? 'wp-step-label--done' : ''}`}>{label}</span>
+              {i < stepLabels.length - 1 && (
+                <div className={`wp-step-line ${i < step ? 'wp-step-line--done' : ''}`} />
+              )}
+            </div>
+          ))}
+        </div>
 
-        {/* Step content */}
-        <div style={{
-          background: 'var(--bg-card)',
-          borderRadius: 12,
-          border: '1px solid var(--border)',
-          padding: '24px 28px',
-          minHeight: 320,
-          marginBottom: 24,
-        }}>
+        {/* Card */}
+        <div className="wp-card">
           {step === 0 && renderStep0()}
           {step === 1 && renderStep1()}
           {step === 2 && renderStep2()}
         </div>
 
-        {/* Navigation */}
-        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-          <Button
-            disabled={step === 0}
+        {/* Nav */}
+        <div className="wp-nav">
+          <button
+            className="wp-btn wp-btn--back"
             onClick={() => setStep(s => s - 1)}
-            icon={<ArrowLeftOutlined />}
+            disabled={step === 0}
           >
-            上一步
-          </Button>
+            <ArrowLeftOutlined /> 上一步
+          </button>
           {step < 2 ? (
-            <Button
-              type="primary"
-              disabled={step === 0 && !canProceedStep0}
+            <button
+              className="wp-btn wp-btn--primary"
               onClick={() => setStep(s => s + 1)}
+              disabled={step === 0 && !canProceedStep0}
             >
               下一步 <ArrowRightOutlined />
-            </Button>
+            </button>
           ) : (
-            <Button
-              type="primary"
-              loading={saving}
-              onClick={handleFinish}
-            >
-              完成配置
-            </Button>
+            <button className="wp-btn wp-btn--primary" onClick={handleFinish} disabled={saving}>
+              {saving ? '保存中…' : '完成配置'}
+            </button>
           )}
         </div>
 
-        {/* Skip hint */}
-        {step === 1 && (
-          <div style={{ textAlign: 'center', marginTop: 12 }}>
-            <Button type="link" size="small" onClick={() => setStep(2)} style={{ color: 'var(--ink-faint)' }}>
-              跳过此步
-            </Button>
-          </div>
-        )}
-        {step === 2 && (
-          <div style={{ textAlign: 'center', marginTop: 12 }}>
-            <Button type="link" size="small" onClick={handleFinish} loading={saving} style={{ color: 'var(--ink-faint)' }}>
-              跳过，直接完成
-            </Button>
-          </div>
-        )}
+        {/* Skip */}
+        <div className="wp-skip">
+          {step === 1 && <button className="wp-skip-btn" onClick={() => setStep(2)}>跳过此步</button>}
+          {step === 2 && <button className="wp-skip-btn" onClick={handleFinish} disabled={saving}>跳过，直接完成</button>}
+        </div>
       </div>
     </div>
   )

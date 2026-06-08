@@ -7,6 +7,7 @@ interface Props {
   content: string
   avatar?: string
   sources?: QASources
+  draftingCard?: boolean
   onSaveResearchCard?: () => void
 }
 
@@ -161,8 +162,8 @@ export default function ChatMessage({ role, content, avatar, sources, onSaveRese
         )}
         {!isUser && onSaveResearchCard && (
           <div style={{ marginTop: 6 }}>
-            <Button type="link" size="small" icon={<SaveOutlined />} onClick={onSaveResearchCard}>
-              沉淀为卡片
+            <Button type="link" size="small" icon={<SaveOutlined />} loading={draftingCard} onClick={onSaveResearchCard}>
+              {draftingCard ? '生成中...' : '沉淀为卡片'}
             </Button>
           </div>
         )}

@@ -402,9 +402,9 @@ export default function AnalysisResult({ result, knowledgeBaseId, onAddToKB, fil
         </Section>
       )}
 
-      {/* ─── Writing Assets (structured) ─── */}
+      {/* Reusable writing material extracted from structured fields */}
       {result.writingAssets && typeof result.writingAssets === 'object' && (
-        <Section icon={<SolutionOutlined />} title="写作资产">
+        <Section icon={<SolutionOutlined />} title="可复用写作素材">
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             {Array.isArray(result.writingAssets.usableClaims) && result.writingAssets.usableClaims.length > 0 && (
               <div>

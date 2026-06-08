@@ -97,6 +97,33 @@ const DEFAULT_README = `# 知识库 README
 ## 阅读与分析偏好
 `
 
+function normalizeReadmeSuggestionText(value: string): string {
+  let text = String(value || '').trim()
+  text = text.replace(/^[-*]\s+/, '').trim()
+  text = text.replace(/^["'“”‘’]+|["'“”‘’]+$/g, '').trim()
+
+  const instructionPatterns: RegExp[] = [
+    /^(?:suggest(?:s|ed)?|recommend(?:s|ed)?)\s+(?:adding|add|including|include|recording|record)\s+/i,
+    /^(?:please\s+)?(?:add|include|record)\s+/i,
+    /^(?:建议|建議|可以|可|请|請)?(?:添加|增加|补充|補充|加入|写入|寫入|纳入|納入|记录|記錄)(?:以下)?(?:内容|內容|条目|條目)?[:：\s]*/u,
+    /^建议在.+?(?:中|里)(?:添加|增加|补充|加入|写入|纳入)[:：\s]*/u,
+  ]
+
+  let changed = true
+  while (changed) {
+    changed = false
+    for (const pattern of instructionPatterns) {
+      const next = text.replace(pattern, '').trim()
+      if (next !== text) {
+        text = next
+        changed = true
+      }
+    }
+  }
+
+  return text || String(value || '').trim()
+}
+
 export function knowledgeBaseRoutes(storage: StorageService, python: PythonBackendClient) {
   const app = new Hono()
 
@@ -208,24 +235,26 @@ export function knowledgeBaseRoutes(storage: StorageService, python: PythonBacke
       const metaPayload = buildMetadataPayload(storage, doc, chunkTexts, tags)
       const paperChunks = buildPaperChunksPayload(storage, docId, chunks)
 
-      python.post('/api/knowledge/documents/gateway', {
-        doc_id: docId,
-        knowledge_base_id: kbId,
-        index_id: indexId,
-        collection_name: collectionName,
-        embedding_provider: embInfo.provider,
-        embedding_model: embInfo.model,
-        embedding_dimensions: embInfo.dimensions,
-        ...metaPayload,
-        ...(paperChunks ? { paperChunks } : {}),
-      }).then(() => {
+      try {
+        await python.post('/api/knowledge/documents/gateway', {
+          doc_id: docId,
+          knowledge_base_id: kbId,
+          index_id: indexId,
+          collection_name: collectionName,
+          embedding_provider: embInfo.provider,
+          embedding_model: embInfo.model,
+          embedding_dimensions: embInfo.dimensions,
+          ...metaPayload,
+          ...(paperChunks ? { paperChunks } : {}),
+        })
         storage.updateDocumentLifecycle(docId, 'indexed')
         storage.markVectorIndexStatus(indexId, 'indexed')
-      }).catch((err: unknown) => {
+      } catch (err: unknown) {
         const errorMsg = err instanceof Error ? err.message : String(err)
         storage.updateDocumentLifecycle(docId, 'index_failed')
         storage.markVectorIndexStatus(indexId, 'failed', errorMsg)
-      })
+        return c.json({ error: `索引失败：${errorMsg}` }, 500)
+      }
 
       // Generate README suggestions in background (fire-and-forget)
       const kb = storage.getKnowledgeBase(kbId)
@@ -289,10 +318,11 @@ export function knowledgeBaseRoutes(storage: StorageService, python: PythonBacke
     // Append suggestion to the relevant README section
     let readme = kb.readme
     const sectionHeader = `## ${suggestion.section}`
+    const suggestionText = normalizeReadmeSuggestionText(suggestion.suggestion)
     if (readme.includes(sectionHeader)) {
-      readme = readme.replace(sectionHeader, `${sectionHeader}\n- ${suggestion.suggestion}`)
+      readme = readme.replace(sectionHeader, `${sectionHeader}\n- ${suggestionText}`)
     } else {
-      readme += `\n${sectionHeader}\n- ${suggestion.suggestion}\n`
+      readme += `\n${sectionHeader}\n- ${suggestionText}\n`
     }
     storage.updateKnowledgeBase(kb.id, { readme })
     storage.updateReadmeSuggestionStatus(suggestionId, 'accepted')

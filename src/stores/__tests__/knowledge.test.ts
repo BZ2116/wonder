@@ -100,6 +100,32 @@ describe('useKnowledgeStore', () => {
     expect(useKnowledgeStore.getState().error).toBe('server down')
   })
 
+  it('reindexDocument waits for the refreshed KB document list', async () => {
+    let resolveDocs: (value: unknown[]) => void = () => {}
+    mockApi.post.mockResolvedValueOnce({ success: true })
+    mockApi.get.mockReturnValueOnce(new Promise(resolve => { resolveDocs = resolve }))
+
+    let completed = false
+    const reindexPromise = useKnowledgeStore.getState().reindexDocument('kb-1', 'doc-1')
+      .then(() => { completed = true })
+
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(completed).toBe(false)
+
+    resolveDocs([
+      { id: 'doc-1', index_status: 'indexed', collection_name: 'documents__test', chunk_count: 2 },
+    ])
+    await reindexPromise
+
+    expect(mockApi.post).toHaveBeenCalledWith('/api/knowledge-bases/kb-1/documents/doc-1/reindex')
+    expect(mockApi.get).toHaveBeenCalledWith('/api/knowledge-bases/kb-1/documents')
+    expect(useKnowledgeStore.getState().kbDocuments).toEqual([
+      { id: 'doc-1', index_status: 'indexed', collection_name: 'documents__test', chunk_count: 2 },
+    ])
+  })
+
   describe('kbLoaded caching', () => {
     it('skips API call when kbLoaded is true and list is non-empty', async () => {
       useKnowledgeStore.setState({

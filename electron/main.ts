@@ -162,24 +162,62 @@ function createSplash(): BrowserWindow {
   splash.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(`<!DOCTYPE html>
 <html><head><style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{display:flex;align-items:center;justify-content:center;height:100vh;
-  background:rgba(250,248,243,0.95);border-radius:12px;overflow:hidden;
-  font-family:"Noto Serif SC","Source Han Serif SC","Georgia",serif}
-.wrap{display:flex;flex-direction:column;align-items:center;gap:14px}
-.icon{font-size:48px;color:#5B7F6E;font-weight:700;
-  text-shadow:0 2px 8px rgba(91,127,110,0.2)}
-.title{font-size:18px;font-weight:600;color:#2C2C2C;letter-spacing:0.02em}
-.spinner{width:32px;height:32px;border:3px solid rgba(91,127,110,0.2);
-  border-top-color:#5B7F6E;border-radius:50%;animation:spin 0.8s linear infinite}
-@keyframes spin{to{transform:rotate(360deg)}}
-.stage{font-size:13px;color:#5B7F6E;min-height:18px;text-align:center}
-.hint{font-size:12px;color:#999;margin-top:2px}
-.error-section{display:none;flex-direction:column;align-items:center;gap:12px}
-.error-icon{font-size:28px;color:#D4574E}
-.error-msg{font-size:13px;color:#666;text-align:center;max-width:300px;line-height:1.5}
-.retry-btn{background:#5B7F6E;color:#fff;border:none;border-radius:6px;
-  padding:8px 24px;font-size:13px;cursor:pointer;font-family:inherit}
+body{
+  display:flex;align-items:center;justify-content:center;height:100vh;
+  background:rgba(250,248,243,0.97);border-radius:14px;overflow:hidden;
+  font-family:"Noto Serif SC","Georgia","Times New Roman",serif;
+  border:1px solid rgba(216,207,190,0.5);
+  box-shadow:0 24px 80px rgba(42,38,34,0.18),0 0 0 1px rgba(255,255,255,0.8) inset;
+}
+/* 装饰线条 */
+body::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:3px;
+  background:linear-gradient(90deg,#5B7F6E,#8BA89A,#5B7F6E);
+  opacity:0.7;
+}
+/* 角落装饰圆 */
+body::after{
+  content:'';position:absolute;bottom:-30px;right:-30px;
+  width:100px;height:100px;border-radius:50%;
+  border:1px solid rgba(91,127,110,0.12);
+  pointer-events:none;
+}
+.wrap{display:flex;flex-direction:column;align-items:center;gap:0;position:relative}
+.brand{display:flex;flex-direction:column;align-items:center;margin-bottom:20px}
+.logo-mark{
+  width:44px;height:44px;border-radius:10px;
+  background:linear-gradient(135deg,#5B7F6E,#7BA08E);
+  display:flex;align-items:center;justify-content:center;
+  font-size:22px;color:#fff;font-weight:700;
+  box-shadow:0 4px 16px rgba(91,127,110,0.35);
+  margin-bottom:14px;
+}
+.wordmark{font-size:16px;font-weight:600;color:#2A2622;letter-spacing:0.12em}
+.wordmark-sub{font-size:10px;color:#8F867B;letter-spacing:0.08em;margin-top:2px}
+.sep{width:1px;height:28px;background:rgba(91,127,110,0.2);margin:4px 0}
+.status{display:flex;flex-direction:column;align-items:center;gap:6px;margin-top:16px}
+.dots{display:flex;gap:6px;align-items:center}
+.dot{width:6px;height:6px;border-radius:50%;background:#5B7F6E;animation:dot-bounce 1.4s ease-in-out infinite both}
+.dot:nth-child(1){animation-delay:0ms}
+.dot:nth-child(2){animation-delay:180ms}
+.dot:nth-child(3){animation-delay:360ms}
+@keyframes dot-bounce{0%,80%,100%{transform:scale(0.5);opacity:0.3}40%{transform:scale(1);opacity:1}}
+.stage{font-size:12px;color:#6B6158;min-height:16px;letter-spacing:0.02em}
+.hint{font-size:11px;color:#B8B0A3;margin-top:1px}
+/* error */
+.error-section{display:none;flex-direction:column;align-items:center;gap:10px}
+.error-icon{font-size:24px;color:#8B2C1F}
+.error-msg{font-size:12px;color:#6B6158;text-align:center;max-width:280px;line-height:1.6}
+.retry-btn{
+  background:#5B7F6E;color:#fff;border:none;border-radius:6px;
+  padding:8px 22px;font-size:12px;cursor:pointer;font-family:inherit;
+  box-shadow:0 2px 8px rgba(91,127,110,0.3);
+}
 .retry-btn:hover{background:#4A6B5A}
+/* 加载进度条 */
+.progress-wrap{width:200px;height:2px;background:rgba(91,127,110,0.1);border-radius:2px;margin-top:12px;overflow:hidden}
+.progress-bar{height:100%;width:30%;background:#5B7F6E;border-radius:2px;animation:progress-sweep 1.8s ease-in-out infinite}
+@keyframes progress-sweep{0%{transform:translateX(-100%)}100%{transform:translateX(400%)}}
 </style>
 <script>
 window.splashAPI.onStage(function(msg) {
@@ -193,12 +231,17 @@ window.splashAPI.onError(function(msg) {
 });
 </script>
 </head><body><div class="wrap">
-<div class="icon">W</div>
-<div class="title">Wonder</div>
-<div id="normal-section">
-  <div class="spinner"></div>
+<div class="brand">
+  <div class="logo-mark">W</div>
+  <div class="wordmark">WONDER</div>
+  <div class="wordmark-sub">Academic Research</div>
+</div>
+<div class="sep"></div>
+<div id="normal-section" class="status">
+  <div class="dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
   <div class="stage" id="stage">启动中...</div>
   <div class="hint">正在启动，请稍候</div>
+  <div class="progress-wrap"><div class="progress-bar"></div></div>
 </div>
 <div class="error-section" id="error-section">
   <div class="error-icon">✕</div>

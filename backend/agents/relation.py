@@ -1,6 +1,7 @@
 import json
 import re
 from .base import BaseAgent
+from backend.core.providers.base import ProviderError
 
 
 class ProjectRelationAgent(BaseAgent):
@@ -51,6 +52,7 @@ Analyze the relation and output a JSON object with these fields:
   - "suggestion": the EXACT content to add or replace in that section. Output the actual text to insert, NOT an instruction like "增加X".
   - "reason": why this update is valuable
   Only suggest updates that are directly supported by this paper's content.
+  The suggestion value must be ready-to-insert README content. It must not start with phrases like "建议", "添加", "补充", "add", or "suggest adding".
 - "analysis": the full relation analysis in markdown format, covering:
   1. Content for Literature Review
   2. Content for Method Design
@@ -60,12 +62,39 @@ Analyze the relation and output a JSON object with these fields:
 
 Output ONLY the JSON object, no other text. Use the same language as the user's research background for all text fields.
 """
-        raw = self.call_llm(
-            system_prompt=self.SYSTEM_PROMPT,
-            user_prompt=user_prompt,
-            temperature=0.2,
-            max_tokens=5000,
-        )
+        try:
+            raw = self.call_llm(
+                system_prompt=self.SYSTEM_PROMPT,
+                user_prompt=user_prompt,
+                temperature=0.2,
+                max_tokens=5000,
+            )
+        except ProviderError:
+            # Model returned empty or failed — fall back to neutral scores
+            return {
+                "fit_score": 50,
+                "fit_reason": "",
+                "relation_type": "unrelated",
+                "recommended_action": "skim",
+                "decision_brief": {
+                    "verdict": "skim",
+                    "confidence": 40,
+                    "best_use": "background",
+                    "why_it_matters": [],
+                    "key_takeaways": [],
+                    "novelty_points": [],
+                    "overlap_points": [],
+                    "conflict_or_risk_points": ["relation analysis failed due to empty model response"],
+                    "next_action": "Record only a short note before deciding whether to revisit.",
+                },
+                "knowledge_increment_score": 0,
+                "evidence_strength_score": 0,
+                "actionability_score": 20,
+                "analysis": "",
+                "suggested_placement": {"sub_direction": "", "tags": []},
+                "novelty_for_kb": "",
+                "readme_suggestions": [],
+            }
 
         # Try to parse JSON from the response
         try:

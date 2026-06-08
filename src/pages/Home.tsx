@@ -1,9 +1,9 @@
 import { useEffect, useState, useMemo } from 'react'
-import { Typography, Button, Empty, Spin, Modal, Form, Input, message } from 'antd'
+import { Typography, Button, Spin, Modal, Form, Input, message } from 'antd'
 import {
   PlusOutlined, BookOutlined, SearchOutlined, ExperimentOutlined,
   EditOutlined, UploadOutlined, ClockCircleOutlined,
-  FileTextOutlined, SettingOutlined, FolderOutlined,
+  FileTextOutlined, FolderOutlined,
 } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
 import { useKnowledgeStore } from '../stores/knowledge'
@@ -47,6 +47,19 @@ function readmeStatus(readme: string): { label: string; complete: boolean } {
   if (filled >= 2) return { label: 'README 已完善', complete: true }
   if (filled >= 1) return { label: 'README 待补充', complete: false }
   return { label: 'README 待完善', complete: false }
+}
+
+/* ─── 手绘装饰 SVG ─── */
+function DecoLines() {
+  return (
+    <svg className="home-deco-lines" viewBox="0 0 400 200" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <path d="M20 180 Q60 100 100 140 T180 120 T260 150 T340 110 T400 130" stroke="var(--border)" strokeWidth="1.5" strokeLinecap="round" fill="none" opacity="0.6"/>
+      <path d="M0 190 Q50 140 120 170 T220 150 T320 175 T400 160" stroke="var(--border-light)" strokeWidth="1" strokeLinecap="round" fill="none" opacity="0.4"/>
+      <circle cx="380" cy="40" r="30" stroke="var(--accent)" strokeWidth="1" fill="none" opacity="0.15"/>
+      <circle cx="380" cy="40" r="20" stroke="var(--accent)" strokeWidth="0.75" fill="none" opacity="0.1"/>
+      <path d="M10 60 L30 40 L50 60 L70 40" stroke="var(--border)" strokeWidth="1" strokeLinecap="round" fill="none" opacity="0.3"/>
+    </svg>
+  )
 }
 
 export default function Home() {
@@ -216,14 +229,13 @@ export default function Home() {
                 />
               ) : (
                 <div className="kb-hub-overview-empty">
-                  <Empty
-                    description={
-                      <span style={{ color: 'var(--ink-faint)', fontSize: 13 }}>
-                        选择一个知识库查看详情
-                      </span>
-                    }
-                    image={Empty.PRESENTED_IMAGE_SIMPLE}
-                  />
+                  <div className="kb-overview-empty-state">
+                    <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                      <rect x="8" y="12" width="48" height="40" rx="4" stroke="var(--ink-ghost)" strokeWidth="1.5" strokeDasharray="4 3" fill="none"/>
+                      <path d="M20 28h24M20 36h16" stroke="var(--ink-ghost)" strokeWidth="1.5" strokeLinecap="round" opacity="0.5"/>
+                    </svg>
+                    <p>选择一个知识库<br/>查看详情</p>
+                  </div>
                 </div>
               )}
             </div>
@@ -376,7 +388,7 @@ function KBOverview({ kb, onAction }: {
         <div className="kb-overview-action-grid">
           <button className="kb-overview-action" onClick={() => onAction('upload')}>
             <UploadOutlined />
-            <span>上传并分析文献</span>
+            <span>导入文献</span>
           </button>
           <button className="kb-overview-action" onClick={() => onAction('discovery')}>
             <SearchOutlined />

@@ -66,7 +66,6 @@ export default function QA() {
     }
   }, [messages])
 
-  // Debounced mention search
   useEffect(() => {
     if (!mentionActive) {
       setShowMentionPicker(false)
@@ -82,12 +81,9 @@ export default function QA() {
   const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value
     setInput(value)
-
-    // Detect @ mention trigger
     const atIndex = value.lastIndexOf('@')
     if (atIndex >= 0) {
       const afterAt = value.slice(atIndex + 1)
-      // Only trigger if there's no space between @ and query (or query is empty)
       if (!afterAt.includes(' ')) {
         setMentionActive(true)
         setMentionQuery(afterAt)
@@ -101,7 +97,6 @@ export default function QA() {
 
   const handleSelectMention = useCallback((doc: { id: string; fileName: string; title?: string | null }) => {
     addMention(doc)
-    // Remove @query from input
     const atIndex = input.lastIndexOf('@')
     if (atIndex >= 0) {
       setInput(input.slice(0, atIndex))
@@ -191,10 +186,18 @@ export default function QA() {
       <div className="wonder-page-header">
         <Typography.Title level={4}>追溯问答</Typography.Title>
         <Typography.Text type="secondary">基于知识库的智能研究助手</Typography.Text>
+        <div style={{ marginTop: 6, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 12, color: 'var(--ink-ghost)' }}>证据状态：</span>
+          <Tag color="success" style={{ fontSize: 11, margin: 0 }}>证据可靠</Tag>
+          <span style={{ fontSize: 11, color: 'var(--ink-ghost)' }}>正文片段且相似度≥35%</span>
+          <Tag color="warning" style={{ fontSize: 11, margin: 0 }}>弱相关</Tag>
+          <span style={{ fontSize: 11, color: 'var(--ink-ghost)' }}>正文片段但相似度&lt;35%</span>
+          <Tag color="default" style={{ fontSize: 11, margin: 0 }}>未命中知识库</Tag>
+          <span style={{ fontSize: 11, color: 'var(--ink-ghost)' }}>仅有摘要/文献信息</span>
+        </div>
       </div>
 
       <div className="wonder-qa-layout">
-        {/* Session sidebar */}
         <Card
           size="small"
           className="wonder-qa-sessions"
@@ -207,7 +210,7 @@ export default function QA() {
               onClick={() => setShowNewSession(true)}
             />
           }
-          bodyStyle={{ padding: 0, flex: 1, overflow: 'hidden' }}
+          bodyStyle={{ padding: 0, flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}
         >
           <div className="wonder-qa-session-list">
           {sessionsLoading && sessions.length === 0 ? (
@@ -259,7 +262,6 @@ export default function QA() {
           </div>
         </Card>
 
-        {/* Chat area */}
         <div className="wonder-qa-main">
           {!sessionId ? (
             <Card className="wonder-qa-empty-card">
@@ -299,6 +301,7 @@ export default function QA() {
                       avatar={msg.role === 'user' ? config?.avatar : undefined}
                       sources={msg.sources}
                       onSaveResearchCard={msg.role === 'assistant' ? () => handleDraftCard(msg.id) : undefined}
+                      draftingCard={cardDraftLoading}
                     />
                   ))}
                   {loading && (
@@ -317,7 +320,6 @@ export default function QA() {
               </Card>
 
               <Card className="wonder-qa-input-card">
-                {/* Mention chips */}
                 {mentionedDocs.length > 0 && (
                   <div style={{ marginBottom: 8, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                     {mentionedDocs.map(doc => (
@@ -334,7 +336,6 @@ export default function QA() {
                   </div>
                 )}
 
-                {/* Mention picker dropdown */}
                 {showMentionPicker && (
                   <div style={{
                     position: 'relative',
@@ -437,7 +438,6 @@ export default function QA() {
         </div>
       </div>
 
-      {/* New session modal */}
       <Modal
         title="新建会话"
         open={showNewSession}
@@ -479,7 +479,6 @@ export default function QA() {
         </div>
       </Modal>
 
-      {/* Research card draft modal */}
       <Modal
         title="沉淀为研究卡片"
         open={cardModalOpen}

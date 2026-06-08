@@ -1,6 +1,6 @@
 {
   "name": "wonder",
-  "version": "0.2.2",
+  "version": "0.2.1",
   "description": "Wonder - AI 文献分析与知识管理工具",
   "main": "dist-electron/main.js",
   "scripts": {

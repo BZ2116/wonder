@@ -215,8 +215,41 @@ describe('knowledgeBaseRoutes - reindex', () => {
     expect(body.success).toBe(true)
     expect(storage.updateReadmeSuggestionStatus).toHaveBeenCalledWith('suggestion-1', 'accepted')
     expect(storage.updateKnowledgeBase).toHaveBeenCalledWith('kb-1', expect.objectContaining({
-      readme: expect.stringContaining('## 主题\n- 添加AI相关内容'),
+      readme: expect.stringContaining('## 主题\n- AI相关内容'),
     }))
+  })
+
+  it('accepts readme suggestion instruction text as plain section content', async () => {
+    const { app, storage } = createApp()
+    storage.getKnowledgeBase.mockReturnValueOnce({
+      id: 'kb-1',
+      name: 'Test KB',
+      readme: '# Knowledge Base README\n\n## Topic\n',
+      description: 'desc',
+      created_at: '',
+      updated_at: '',
+    })
+    storage.getReadmeSuggestionById = vi.fn((id: string) => id === 'suggestion-2' ? {
+      id: 'suggestion-2',
+      knowledge_base_id: 'kb-1',
+      document_id: 'doc-1',
+      section: 'Topic',
+      suggestion: 'Suggest adding AI education applications',
+      reason: 'The document discusses this direction',
+      status: 'pending',
+      created_at: '2025-01-01',
+    } : undefined)
+
+    const res = await app.request('/api/knowledge-bases/readme-suggestions/suggestion-2/accept', {
+      method: 'POST',
+    })
+
+    expect(res.status).toBe(200)
+    expect(storage.updateKnowledgeBase).toHaveBeenCalledWith('kb-1', expect.objectContaining({
+      readme: expect.stringContaining('## Topic\n- AI education applications'),
+    }))
+    const updatedReadme = storage.updateKnowledgeBase.mock.calls.at(-1)?.[1].readme
+    expect(updatedReadme).not.toContain('Suggest adding')
   })
 
   it('records index status on success via vector ledger', async () => {

@@ -24,6 +24,17 @@ function uniqueStrings(values: Array<string | null | undefined>): string[] {
   return Array.from(new Set(values.filter((v): v is string => Boolean(v))))
 }
 
+function indexedCollectionNamesForMentionedDocs(storage: StorageService, docIds: string[]): string[] {
+  const names: Array<string | null | undefined> = []
+  for (const docId of docIds) {
+    const indexes = storage.getVectorIndexesForDocument(docId)
+    for (const index of indexes) {
+      if (index.status === 'indexed') names.push(index.collection_name)
+    }
+  }
+  return uniqueStrings(names)
+}
+
 export function qaRoutes(storage: StorageService, python: PythonBackendClient) {
   const app = new Hono()
 
@@ -139,7 +150,7 @@ export function qaRoutes(storage: StorageService, python: PythonBackendClient) {
       pythonBody.doc_ids = body.mentionedDocIds
     }
 
-    // Resolve indexed collection names for knowledge-base scoped sessions
+    // Resolve indexed collection names for the scoped or explicitly mentioned documents.
     const kbId = session.scope_type === 'knowledge_base' && scopeIds.length > 0 ? scopeIds[0] : undefined
     if (kbId) {
       const kbCollectionIndexes = storage.getVectorIndexesForKnowledgeBase(kbId, 'indexed')
@@ -148,6 +159,11 @@ export function qaRoutes(storage: StorageService, python: PythonBackendClient) {
         ? kbCollectionIndexes.filter(idx => mentionedSet.has(idx.document_id))
         : kbCollectionIndexes
       const collectionNames = uniqueStrings(relevantIndexes.map(idx => idx.collection_name))
+      if (collectionNames.length > 0) {
+        pythonBody.collection_names = collectionNames
+      }
+    } else if (mentionedDocIds.length > 0) {
+      const collectionNames = indexedCollectionNamesForMentionedDocs(storage, mentionedDocIds)
       if (collectionNames.length > 0) {
         pythonBody.collection_names = collectionNames
       }

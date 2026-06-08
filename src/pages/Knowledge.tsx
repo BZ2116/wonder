@@ -31,6 +31,8 @@ export default function Knowledge() {
   const [form] = Form.useForm()
   const [readmeForm] = Form.useForm()
   const [nameForm] = Form.useForm()
+  const [reindexingDocId, setReindexingDocId] = useState<string | null>(null)
+  const [reindexSuccessDocId, setReindexSuccessDocId] = useState<string | null>(null)
 
   useEffect(() => { loadKnowledgeBases() }, [loadKnowledgeBases])
 
@@ -312,12 +314,31 @@ export default function Knowledge() {
                       </Typography.Text>
                       <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 4 }} onClick={e => e.stopPropagation()}>
                         <Tag color={tagInfo.color} icon={tagIconMap[tagInfo.kind]}>{tagInfo.label}</Tag>
-                        {indexStatus !== 'indexing' && selectedKBId && (
+                        {(indexStatus !== 'indexing' || reindexingDocId === doc.id) && selectedKBId && (
                           <Button
                             type="text"
                             size="small"
-                            icon={<ReloadOutlined />}
-                            onClick={() => reindexDocument(selectedKBId!, doc.id)}
+                            icon={
+                              reindexingDocId === doc.id
+                                ? <SyncOutlined spin />
+                                : reindexSuccessDocId === doc.id
+                                ? <CheckCircleOutlined />
+                                : <ReloadOutlined />
+                            }
+                            onClick={() => {
+                              setReindexingDocId(doc.id)
+                              setReindexSuccessDocId(null)
+                              reindexDocument(selectedKBId!, doc.id)
+                                .then(() => {
+                                  setReindexingDocId(null)
+                                  setReindexSuccessDocId(doc.id)
+                                  setTimeout(() => setReindexSuccessDocId(null), 2000)
+                                })
+                                .catch(err => {
+                                  setReindexingDocId(null)
+                                  message.error(`重建索引失败：${err instanceof Error ? err.message : err}`)
+                                })
+                            }}
                             title="重建索引"
                           />
                         )}
@@ -356,7 +377,7 @@ export default function Knowledge() {
                         </Typography.Text>
                       )}
                       {doc.year && <Tag style={{ fontSize: 11 }}>{doc.year}</Tag>}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'nowrap' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'nowrap', flexShrink: 0 }}>
                         {doc.fit_score != null && <Tag color="blue">匹配 {doc.fit_score}</Tag>}
                         {doc.recommended_action && <Tag style={{ maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{doc.recommended_action}</Tag>}
                       </div>

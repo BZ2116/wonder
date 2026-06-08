@@ -14,6 +14,7 @@ function createMockStorage(overrides: Record<string, unknown> = {}) {
     addQAMessage: vi.fn(),
     getQAMessagesBySessionId: vi.fn(() => []),
     listDocuments: vi.fn(() => []),
+    getVectorIndexesForDocument: vi.fn(() => []),
     getVectorIndexesForKnowledgeBase: vi.fn(() => []),
     ...overrides,
   }
@@ -540,6 +541,36 @@ describe('qaRoutes', () => {
     })
 
     expect((python.post as any).mock.calls[0][1].collection_names).toEqual(['documents__configured'])
+  })
+
+  it('passes indexed collection names for mentioned documents outside KB sessions', async () => {
+    const storage = createMockStorage({
+      getQASession: vi.fn(() => ({
+        id: 's1', title: 'Test', scope_type: 'all', scope_ids: '[]',
+        created_at: '2024-01-01', updated_at: '2024-01-01',
+      })),
+      getQAMessagesBySessionId: vi.fn(() => []),
+      listDocuments: vi.fn(() => [{ id: 'doc-1' }]),
+      getVectorIndexesForDocument: vi.fn(() => [
+        { document_id: 'doc-1', collection_name: 'documents__mentioned', status: 'indexed' },
+        { document_id: 'doc-1', collection_name: 'documents__stale', status: 'stale' },
+      ]),
+    })
+    const python = createMockPython()
+    const app = new Hono()
+    app.route('/api/qa', qaRoutes(storage as any, python as any))
+
+    await app.request('/api/qa/sessions/s1/messages', {
+      method: 'POST',
+      body: JSON.stringify({ question: '这篇论文贡献是什么？', mentionedDocIds: ['doc-1'] }),
+      headers: { 'Content-Type': 'application/json' },
+    })
+
+    const callArg = (python.post as any).mock.calls[0][1]
+    expect(storage.getVectorIndexesForDocument).toHaveBeenCalledWith('doc-1')
+    expect(callArg.mentioned_doc_ids).toEqual(['doc-1'])
+    expect(callArg.doc_ids).toEqual(['doc-1'])
+    expect(callArg.collection_names).toEqual(['documents__mentioned'])
   })
 
   it('sources persist with both existing and new response fields', async () => {

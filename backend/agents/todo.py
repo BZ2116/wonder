@@ -1,4 +1,5 @@
 from .base import BaseAgent
+from backend.core.providers.base import ProviderError
 
 
 class TodoAgent(BaseAgent):
@@ -48,9 +49,13 @@ Give execution path within 5 steps.
 ## 5. Risk Reminders
 Point out potential problems like incomplete materials, hard-to-reproduce experiments, inconsistent metrics.
 """
-        return self.call_llm(
-            system_prompt=self.SYSTEM_PROMPT,
-            user_prompt=user_prompt,
-            temperature=0.2,
-            max_tokens=3200,
-        )
+        try:
+            return self.call_llm(
+                system_prompt=self.SYSTEM_PROMPT,
+                user_prompt=user_prompt,
+                temperature=0.2,
+                max_tokens=3200,
+            )
+        except ProviderError:
+            # Model returned empty or failed — return minimal placeholder
+            return "# Follow-up Task List\n\n## 1. High Priority Tasks\n（待办生成失败，请手动记录）\n\n## 2. Medium Priority Tasks\n-\n\n## 3. Low Priority Tasks\n-\n\n## 4. Recommended Execution Order\n1. Manual review required\n\n## 5. Risk Reminders\n- Todo generation failed due to empty model response"
