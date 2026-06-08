@@ -1,41 +1,6 @@
 import { UserOutlined, RobotOutlined, FileTextOutlined, SaveOutlined, ExperimentOutlined } from '@ant-design/icons'
 import { Tag, Button } from 'antd'
-
-interface SourceRef {
-  doc_id: string
-  file_name: string
-  chunk_id?: string | null
-  chunk_index?: number | null
-  chunk_type: 'profile' | 'summary' | 'content' | 'card'
-  content: string
-  score?: number | null
-  paperTitle?: string
-  sectionTitle?: string
-  sectionType?: string
-  pageStart?: number | null
-  pageEnd?: number | null
-  labels?: string[]
-  parser?: string | null
-  zh_semantic_summary?: string
-  zhSemanticSummary?: string
-  terms_en?: string
-  termsEn?: string
-  terms_zh?: string
-  termsZh?: string
-  confidence_flags?: string
-  confidenceFlags?: string
-}
-
-type AnswerMode = 'general' | 'rag_enhanced' | 'mentioned_docs' | 'compare_docs'
-type EvidenceStatus = 'none' | 'weak' | 'reliable'
-
-interface QASources {
-  docIds: string[]
-  chunks: string[]
-  refs?: SourceRef[]
-  answerMode?: AnswerMode
-  evidenceStatus?: EvidenceStatus
-}
+import type { QASources, EvidenceStatus } from '../stores/qa'
 
 interface Props {
   role: 'user' | 'assistant'
