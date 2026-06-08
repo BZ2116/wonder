@@ -1,6 +1,6 @@
 import { UserOutlined, RobotOutlined, FileTextOutlined, SaveOutlined, ExperimentOutlined } from '@ant-design/icons'
 import { Tag, Button } from 'antd'
-import type { QASources, EvidenceStatus } from '../stores/qa'
+import type { QASources, EvidenceStatus, AnswerMode } from '../stores/qa'
 
 interface Props {
   role: 'user' | 'assistant'

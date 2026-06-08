@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { api } from '../services/api'
 import type { ResearchCardDraft } from '../types/research-card'
 
-type AnswerMode = 'general' | 'rag_enhanced' | 'mentioned_docs' | 'compare_docs'
+export type AnswerMode = 'general' | 'rag_enhanced' | 'mentioned_docs' | 'compare_docs'
 
 export type EvidenceStatus = 'none' | 'weak' | 'reliable'
 
@@ -31,7 +31,7 @@ export interface SourceRef {
   confidenceFlags?: string
 }
 
-interface QASources {
+export interface QASources {
   docIds: string[]
   chunks: string[]
   refs?: SourceRef[]
