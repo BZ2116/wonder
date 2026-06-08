@@ -146,6 +146,7 @@ class DocumentIndexer:
         documents.append(summary)
 
         if paper_chunks is not None:
+            enrichment_idx = 0
             for i, paper_chunk in enumerate(paper_chunks):
                 # Source entry
                 ids.append(f"{doc_id}_{knowledge_base_id}_chunk_{i}_source")
@@ -165,7 +166,7 @@ class DocumentIndexer:
                 })
                 documents.append(source_documents[i])
 
-                # Enrichment entry (only if useful)
+                # Enrichment entry (only if useful) - use enrichment_idx to track position in enrichment_documents
                 if paper_chunk.zh_semantic_summary or paper_chunk.zh_key_points or paper_chunk.terms:
                     ids.append(f"{doc_id}_{knowledge_base_id}_chunk_{i}_zh")
                     metadatas.append({
@@ -181,7 +182,8 @@ class DocumentIndexer:
                         "entry_kind": "zh_enrichment",
                         **paper_meta,
                     })
-                    documents.append(enrichment_embedding_text(paper_title or file_name, paper_chunk))
+                    documents.append(enrichment_documents[enrichment_idx])
+                    enrichment_idx += 1
         else:
             for i, chunk in enumerate(chunks):
                 ids.append(f"{doc_id}_{knowledge_base_id}_chunk_{i}")
